@@ -1,4 +1,4 @@
-﻿namespace NyangoPress.UnitTests;
+namespace NyangoPress.UnitTests;
 
 public class UnitTest1
 {
