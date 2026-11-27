@@ -186,7 +186,6 @@ git switch develop
 cp docker/.env.example docker/.env     # mots de passe donnés par Dev 1
 docker compose -f docker/docker-compose.yml --env-file docker/.env up -d
 
-dotnet user-secrets set "ConnectionStrings:Default" "Host=localhost;Port=5432;Database=nyangopress;Username=nyango;Password=..." --project src/NyangoPress.Api
 dotnet user-secrets set "Jwt:Key" "..." --project src/NyangoPress.Api
 
 dotnet restore
