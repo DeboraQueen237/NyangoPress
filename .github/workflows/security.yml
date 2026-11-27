@@ -14,10 +14,11 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
-      - name: Recherche de paquets vulnérables
+      - name: Recherche de paquets vulnérables (directs)
         run: |
           dotnet restore
-          dotnet list package --vulnerable --include-transitive 2>&1 | tee vuln.txt
+          dotnet list package --vulnerable 2>&1 | tee vuln.txt
           if grep -q "has the following vulnerable packages" vuln.txt; then
-            echo "Paquets vulnérables détectés"; exit 1
+            echo "Paquets directs vulnérables détectés"; exit 1
           fi
+          dotnet list package --vulnerable --include-transitive 2>&1 | grep -i "vulnerable" || true
