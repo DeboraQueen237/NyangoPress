@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/NyangoPress.Api/NyangoPress.Api.csproj" />
+    <Project Path="src/NyangoPress.Application/NyangoPress.Application.csproj" />
+    <Project Path="src/NyangoPress.Domain/NyangoPress.Domain.csproj" />
+    <Project Path="src/NyangoPress.Infrastructure/NyangoPress.Infrastructure.csproj" />
+    <Project Path="src/NyangoPress.Shared/NyangoPress.Shared.csproj" />
+    <Project Path="src/NyangoPress.Web/NyangoPress.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/NyangoPress.IntegrationTests/NyangoPress.IntegrationTests.csproj" />
+    <Project Path="tests/NyangoPress.UnitTests/NyangoPress.UnitTests.csproj" />
+  </Folder>
+</Solution>

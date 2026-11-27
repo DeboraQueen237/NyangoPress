@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>248f87e0-dde3-44ec-b0e9-be5fda5968ba</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Hangfire.AspNetCore" Version="1.8.25" />
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.9" />
+    <PackageReference Include="Serilog.AspNetCore" Version="11.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\NyangoPress.Application\NyangoPress.Application.csproj" />
+    <ProjectReference Include="..\NyangoPress.Infrastructure\NyangoPress.Infrastructure.csproj" />
+    <ProjectReference Include="..\NyangoPress.Shared\NyangoPress.Shared.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,43 @@
+# Services de développement et de démonstration.
+# Utilisation : docker compose -f docker/docker-compose.yml --env-file docker/.env up -d
+services:
+  db:
+    image: postgres:17
+    container_name: nyangopress-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: nyangopress
+      POSTGRES_USER: nyango
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nyango -d nyangopress"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: nyangopress-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD}
+    ports:
+      - "5050:80"
+    depends_on:
+      - db
+
+  mailpit:
+    image: axllent/mailpit
+    container_name: nyangopress-mailpit
+    restart: unless-stopped
+    ports:
+      - "1025:1025"   # SMTP
+      - "8025:8025"   # Interface web
+
+volumes:
+  pgdata:

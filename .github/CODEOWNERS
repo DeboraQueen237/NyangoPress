@@ -1,0 +1,39 @@
+# Remplacez @dev1 ... @dev5 par les vrais noms d'utilisateur GitHub.
+# Chaque dossier a un propriétaire dont l'avis est demandé automatiquement.
+
+*                                   @dev1
+/.github/                           @dev1
+/docker/                            @dev1
+**/Common/                          @dev1
+**/Identity/                        @dev1
+**/Audit/                           @dev1
+**/Settings/                        @dev1
+
+**/Customers/                       @dev2
+**/Orders/                          @dev2
+**/Delivery/                        @dev2
+**/Auctions/                        @dev2
+
+**/Catalog/                         @dev3
+**/Payments/                        @dev3
+**/Documents/                       @dev3
+**/Loyalty/                         @dev3
+**/Reports/                         @dev3
+**/Expenses/                        @dev3
+
+/src/NyangoPress.Web/Shared/        @dev4
+/src/NyangoPress.Web/Layouts/       @dev4
+/src/NyangoPress.Web/Theme/         @dev4
+/src/NyangoPress.Web/Localization/  @dev4
+/src/NyangoPress.Web/Pages/Portal/  @dev4
+/src/NyangoPress.Web/Pages/Dashboard/ @dev4
+/src/NyangoPress.Web/Pages/Pos/     @dev4
+/src/NyangoPress.Web/Pages/Production/ @dev4
+/src/NyangoPress.Web/Pages/Driver/  @dev4
+
+**/Notifications/                   @dev5
+**/Inventory/                       @dev5
+**/Suppliers/                       @dev5
+**/Equipment/                       @dev5
+**/Jobs/                            @dev5
+**/Knowledge/                       @dev5
