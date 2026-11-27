@@ -1,6 +1,26 @@
-@NyangoPress.Api_HostAddress = http://localhost:5059
+@host = https://localhost:7246
 
-GET {{NyangoPress.Api_HostAddress}}/weatherforecast/
-Accept: application/json
+### 1. Connexion (le jeton est réutilisé automatiquement ci-dessous)
+# @name login
+POST {{host}}/api/auth/login
+Content-Type: application/json
 
-###
+{
+  "userNameOrEmail": "admin",
+  "password": "VOTRE_MOT_DE_PASSE_ADMIN"
+}
+
+### 2. Qui suis-je ?
+GET {{host}}/api/auth/me
+Authorization: Bearer {{login.response.body.$.accessToken}}
+
+### 3. Rafraîchir la session
+POST {{host}}/api/auth/refresh
+Content-Type: application/json
+
+{
+  "refreshToken": "{{login.response.body.$.refreshToken}}"
+}
+
+### 4. Santé de l'API
+GET {{host}}/health/ready

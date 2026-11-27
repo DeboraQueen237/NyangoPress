@@ -1,41 +1,53 @@
+using NyangoPress.Api.Middleware;
+using NyangoPress.Api.Modules;
+using NyangoPress.Api.Startup;
+using Serilog;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
+builder.WebHost.ConfigureKestrel(options => options.AddServerHeader = false);
+
+builder.Host.UseSerilog((context, services, configuration) => configuration
+    .ReadFrom.Configuration(context.Configuration)
+    .ReadFrom.Services(services)
+    .Enrich.FromLogContext()
+    .WriteTo.Console()
+    .WriteTo.File("logs/nyangopress-.log", rollingInterval: RollingInterval.Day, retainedFileCountLimit: 30));
+
+// Tous les modules (classes IModule) sont découverts automatiquement : ne modifiez PAS ce fichier pour ajouter le vôtre.
+var modules = ModuleCatalog.Discover();
+foreach (var module in modules)
+{
+    module.AddServices(builder);
+}
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
-if (app.Environment.IsDevelopment())
+app.UseSerilogRequestLogging();
+app.UseMiddleware<ExceptionHandlingMiddleware>();
+app.UseMiddleware<SecurityHeadersMiddleware>();
+
+if (!app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.UseHsts();
 }
 
 app.UseHttpsRedirection();
+app.UseCors();
+app.UseRateLimiter();
+app.UseAuthentication();
+app.UseAuthorization();
 
-var summaries = new[]
+foreach (var module in modules)
 {
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
+    module.MapEndpoints(app);
+}
 
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast");
+await DatabaseInitializer.InitializeAsync(app);
 
 app.Run();
 
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
+// Nécessaire pour que les tests d'intégration (WebApplicationFactory) puissent démarrer l'API.
+public partial class Program
 {
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
 }
