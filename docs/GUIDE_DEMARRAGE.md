@@ -85,6 +85,7 @@ dotnet add src/NyangoPress.Api            reference src/NyangoPress.Application 
 dotnet add src/NyangoPress.Web            reference src/NyangoPress.Shared
 dotnet add tests/NyangoPress.UnitTests        reference src/NyangoPress.Domain src/NyangoPress.Application
 dotnet add tests/NyangoPress.IntegrationTests reference src/NyangoPress.Api
+dotnet add tests/NyangoPress.IntegrationTests reference src/NyangoPress.Api
 ```
 
 Paquets NuGet (la dernière version compatible est choisie automatiquement) :
@@ -186,7 +187,7 @@ git switch develop
 cp docker/.env.example docker/.env     # mots de passe donnés par Dev 1
 docker compose -f docker/docker-compose.yml --env-file docker/.env up -d
 
-dotnet user-secrets set "ConnectionStrings:Default" "Host=localhost;Port=5432;Database=nyangopress;Username=nyango;Password=..." --project src/NyangoPress.Api
+dotnet user-secrets set "ConnectionStrings:Default" "Host=localhost;Port=5432;Database=nyangopress;Username=nyango;Password=admin123" --project src/NyangoPress.Api
 dotnet user-secrets set "Jwt:Key" "..." --project src/NyangoPress.Api
 
 dotnet restore
