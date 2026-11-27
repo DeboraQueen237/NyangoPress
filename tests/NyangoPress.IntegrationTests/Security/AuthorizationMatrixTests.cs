@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,7 +15,7 @@ namespace NyangoPress.IntegrationTests.Security;
 
 public sealed class ApiFactory : WebApplicationFactory<Program>
 {
-    protected override void ConfigureWebHost(Microsoft.AspNetCore.Hosting.IWebHostBuilder builder) =>
+    protected override void ConfigureWebHost(IWebHostBuilder builder) =>
         builder.UseEnvironment("Testing");
 }
 
