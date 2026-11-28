@@ -483,5 +483,5 @@ $RECYCLE.BIN/
 "docker/.env" 
 
 logs/
-storage/
 *.log
+/src/NyangoPress.Api/storage/
