@@ -1,0 +1,137 @@
+/* NyangoPress : page publique (accueil). Complète app.css. */
+
+html {
+    scroll-behavior: smooth;
+}
+
+/* ---------- Navigation publique ---------- */
+.np-pub-links {
+    display: flex;
+    gap: 4px;
+}
+
+.np-pub-menu {
+    display: none;
+}
+
+.np-order-btn {
+    white-space: nowrap;
+}
+
+@media (max-width: 959px) {
+    .np-pub-links {
+        display: none;
+    }
+
+    .np-pub-menu {
+        display: block;
+    }
+}
+
+@media (max-width: 599px) {
+    .np-order-btn {
+        display: none; /* le bouton reste accessible dans la section principale */
+    }
+}
+
+/* ---------- Sections ---------- */
+.np-section {
+    padding: 48px 0;
+    scroll-margin-top: 80px;
+}
+
+/* ---------- Section principale ---------- */
+.np-hero-grid {
+    display: grid;
+    grid-template-columns: 1.25fr .75fr;
+    gap: 40px;
+    align-items: center;
+    padding-top: 56px;
+}
+
+.np-hero-tile {
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 100%;
+    max-width: 300px;
+    aspect-ratio: 1;
+    justify-self: center;
+    border-radius: 32px;
+    background: var(--np-deep-blue);
+    box-shadow: var(--np-shadow);
+}
+
+/* Couture dorée à l'intérieur de la tuile */
+.np-hero-tile::before {
+    content: "";
+    position: absolute;
+    inset: 12px;
+    border: 2px dashed rgba(244, 185, 66, .8);
+    border-radius: 22px;
+    pointer-events: none;
+}
+
+@media (max-width: 799px) {
+    .np-hero-grid {
+        grid-template-columns: 1fr;
+        gap: 28px;
+    }
+
+    .np-hero-tile {
+        max-width: 200px;
+        justify-self: start;
+    }
+}
+
+/* ---------- Grille de cartes ---------- */
+.np-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 20px;
+}
+
+.np-service-icon {
+    display: inline-grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--np-deep-blue);
+    color: #FFFFFF;
+}
+
+/* ---------- Étiquettes larges (Comment ça marche) ---------- */
+.np-tag-wide {
+    flex-basis: 190px;
+}
+
+.np-tag-text {
+    display: block;
+    margin-top: 8px;
+    font-size: .875rem;
+    color: var(--mud-palette-text-secondary);
+}
+
+/* ---------- Pied de page ---------- */
+.np-footer {
+    margin-top: 32px;
+    padding: 24px 0;
+    border-top: 2px dashed var(--np-stitch);
+}
+
+.np-footer-inner {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.np-footer .np-brand {
+    color: var(--mud-palette-text-primary);
+}
+
+.np-footer .np-brand svg path[stroke] {
+    stroke: var(--mud-palette-text-primary);
+}

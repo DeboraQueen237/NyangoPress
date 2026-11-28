@@ -1,0 +1,146 @@
+@page "/"
+@layout PublicLayout
+@using NyangoPress.Web.Components.Layout
+
+<PageTitle>NyangoPress</PageTitle>
+
+@* Provisoire : tous les textes seront déplacés dans les ressources FR/EN (i18n). *@
+
+@* ---------- 1. Section principale ---------- *@
+<section class="np-section np-hero-grid">
+    <div>
+        <MudText Typo="Typo.h1" GutterBottom="true">Vos vêtements méritent le meilleur soin.</MudText>
+        <MudText Typo="Typo.h6" Color="Color.Secondary" Class="mb-6">
+            Lavage, repassage, nettoyage à sec et livraison à domicile, avec un suivi à chaque étape.
+        </MudText>
+        <MudStack Row="true" Wrap="Wrap.Wrap" Spacing="3">
+            <MudButton Href="#services" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Large">Découvrir nos services</MudButton>
+            @* TODO : lier à la demande de collecte (DEL-07) quand elle existera *@
+            <MudButton Href="#contact" Variant="Variant.Outlined" Color="Color.Primary" Size="Size.Large">Réserver maintenant</MudButton>
+        </MudStack>
+    </div>
+    <div class="np-hero-tile" aria-hidden="true">
+        <NpLogo Size="150" />
+    </div>
+</section>
+
+@* ---------- 2. Nos services ---------- *@
+<section id="services" class="np-section">
+    <MudText Typo="Typo.h3" GutterBottom="true">Nos services</MudText>
+    <div class="np-grid mt-4">
+        @foreach (var s in _services)
+        {
+            <MudPaper Elevation="0" Class="np-stitch np-service pa-5">
+                <span class="np-service-icon"><MudIcon Icon="@s.Icon" /></span>
+                <MudText Typo="Typo.h6" Class="mt-3">@s.Title</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">@s.Text</MudText>
+            </MudPaper>
+        }
+    </div>
+</section>
+
+@* ---------- 3. Comment ça marche ---------- *@
+<section id="apropos" class="np-section">
+    <MudText Typo="Typo.h3" GutterBottom="true">Comment ça marche ?</MudText>
+    <div class="np-rail mt-4">
+        <div class="np-rail-track" role="list">
+            @for (var i = 0; i < _steps.Length; i++)
+            {
+                var step = _steps[i];
+                <div class="np-tag np-tag-wide" role="listitem" style="--tag:@step.Color; --i:@i">
+                    <span class="np-tag-string"></span>
+                    <span class="np-tag-hole"></span>
+                    <span class="np-tag-label">@step.Label</span>
+                    <span class="np-tag-text">@step.Text</span>
+                </div>
+            }
+        </div>
+    </div>
+</section>
+
+@* ---------- 4. Nos tarifs ---------- *@
+<section id="tarifs" class="np-section">
+    <MudText Typo="Typo.h3" GutterBottom="true">Nos tarifs</MudText>
+    @* TODO : afficher les prix de la grille tarifaire via l'API du catalogue (Dev 3). Aucun prix en dur dans l'interface. *@
+    <MudPaper Elevation="0" Class="np-stitch pa-4 mt-4">
+        <MudSimpleTable Dense="true" Hover="true" Elevation="0">
+            <thead>
+                <tr><th>Service</th><th>Prix</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var s in _services)
+                {
+                    <tr><td>@s.Title</td><td>À venir</td></tr>
+                }
+            </tbody>
+        </MudSimpleTable>
+    </MudPaper>
+</section>
+
+@* ---------- 5. Avis de nos clients ---------- *@
+<section class="np-section">
+    <MudText Typo="Typo.h3" GutterBottom="true">Avis de nos clients</MudText>
+    @* Exemples pour la démonstration : à remplacer par de vrais avis. *@
+    <div class="np-grid mt-4">
+        @foreach (var r in _reviews)
+        {
+            <MudPaper Elevation="0" Class="np-stitch pa-5">
+                <MudText Typo="Typo.body1">« @r.Text »</MudText>
+                <MudText Typo="Typo.subtitle2" Color="Color.Secondary" Class="mt-3">@r.Author</MudText>
+            </MudPaper>
+        }
+    </div>
+</section>
+
+@* ---------- 6. Contact ---------- *@
+<section id="contact" class="np-section">
+    <MudText Typo="Typo.h3" GutterBottom="true">Nous contacter</MudText>
+    @* TODO : lire adresse, téléphone et horaires dans les paramètres du pressing (SET-01). *@
+    <div class="np-grid mt-4">
+        <MudPaper Elevation="0" Class="np-stitch pa-5">
+            <MudIcon Icon="@Icons.Material.Filled.Place" />
+            <MudText Typo="Typo.h6" Class="mt-2">Adresse</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">À renseigner dans les paramètres</MudText>
+        </MudPaper>
+        <MudPaper Elevation="0" Class="np-stitch pa-5">
+            <MudIcon Icon="@Icons.Material.Filled.Phone" />
+            <MudText Typo="Typo.h6" Class="mt-2">Téléphone et WhatsApp</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">À renseigner dans les paramètres</MudText>
+        </MudPaper>
+        <MudPaper Elevation="0" Class="np-stitch pa-5">
+            <MudIcon Icon="@Icons.Material.Filled.Schedule" />
+            <MudText Typo="Typo.h6" Class="mt-2">Horaires</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">À renseigner dans les paramètres</MudText>
+        </MudPaper>
+    </div>
+</section>
+
+@code {
+    private record Service(string Icon, string Title, string Text);
+    private record Step(string Label, string Text, string Color);
+    private record Review(string Text, string Author);
+
+    private static readonly Service[] _services =
+    {
+        new(Icons.Material.Filled.LocalLaundryService, "Lavage de vêtements", "Vos habits du quotidien, lavés avec soin."),
+        new(Icons.Material.Filled.Checkroom, "Repassage", "Un repassage net, prêt à porter sur cintre."),
+        new(Icons.Material.Filled.DryCleaning, "Nettoyage à sec", "Costumes, robes et tissus délicats."),
+        new(Icons.Material.Filled.CleaningServices, "Nettoyage de chaussures", "Vos chaussures remises à neuf."),
+        new(Icons.Material.Filled.LocalShipping, "Collecte et livraison à domicile", "Nous passons chez vous, vous ne bougez pas.")
+    };
+
+    private static readonly Step[] _steps =
+    {
+        new("Commande", "Vous passez votre commande.", "#64748B"),
+        new("Collecte", "Nous récupérons vos vêtements.", "#0E7490"),
+        new("Nettoyage", "Nous les nettoyons.", "#19B5C6"),
+        new("Livraison", "Nous vous les livrons.", "#16A34A")
+    };
+
+    private static readonly Review[] _reviews =
+    {
+        new("Mes chemises sont revenues impeccables, et j'ai suivi chaque étape depuis mon téléphone.", "Cliente, exemple"),
+        new("La livraison à domicile m'a fait gagner un temps précieux.", "Client, exemple"),
+        new("Les photos à la réception m'ont rassuré sur l'état de mon costume.", "Client, exemple")
+    };
+}

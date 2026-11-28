@@ -1,0 +1,270 @@
+/* NyangoPress : styles globaux v2.
+   Univers visuel : l'atelier de pressing (couture, étiquettes à œillet, tissu, rail de cintres). */
+
+:root {
+    --np-deep-blue: #0B3C5D;
+    --np-turquoise: #0E7490;
+    --np-aqua: #19B5C6;
+    --np-gold: #F4B942;
+    --np-slate: #64748B;
+    --np-radius: 12px;
+    --np-stitch: rgba(14, 116, 144, .38);
+    --np-weave: rgba(100, 116, 139, .07);
+    --np-shadow: 0 1px 2px rgba(11, 60, 93, .10), 0 6px 14px rgba(11, 60, 93, .08);
+}
+
+html, body {
+    font-family: "Inter", "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    margin: 0;
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: "Poppins", "Inter", "Segoe UI", sans-serif;
+}
+
+:focus-visible {
+    outline: 3px solid var(--np-aqua);
+    outline-offset: 2px;
+}
+
+/* ---------- Tissu : fond tissé très discret ---------- */
+.mud-main-content {
+    background-image:
+        repeating-linear-gradient(45deg, var(--np-weave) 0 1px, transparent 1px 7px),
+        repeating-linear-gradient(-45deg, var(--np-weave) 0 1px, transparent 1px 7px);
+}
+
+/* ---------- Barre du haut : couture au fil d'or ---------- */
+.np-appbar {
+    position: fixed;
+}
+
+.np-appbar::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 5px;
+    border-bottom: 2px dashed rgba(244, 185, 66, .75);
+    pointer-events: none;
+}
+
+.np-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+    color: inherit;
+}
+
+.np-brand-name {
+    font-family: "Poppins", "Inter", sans-serif;
+    font-weight: 700;
+    font-size: 1.2rem;
+    letter-spacing: .2px;
+}
+
+/* ---------- Menu : étiquettes de pressing à œillet ---------- */
+.np-nav {
+    padding-top: 12px;
+}
+
+.np-nav .mud-nav-link {
+    position: relative;
+    margin: 8px 12px 8px 8px;
+    padding: 10px 14px 10px 46px;
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: 4px 16px 16px 4px;
+    background: var(--mud-palette-surface);
+    box-shadow: var(--np-shadow);
+    font-weight: 500;
+    transition: transform .18s ease, box-shadow .18s ease;
+}
+
+/* L'œillet de l'étiquette */
+.np-nav .mud-nav-link::before {
+    content: "";
+    position: absolute;
+    left: 14px;
+    top: 50%;
+    width: 12px;
+    height: 12px;
+    margin-top: -6px;
+    border-radius: 50%;
+    border: 2px solid var(--np-slate);
+    background: var(--mud-palette-drawer-background);
+}
+
+.np-nav .mud-nav-link:hover {
+    transform: translateX(4px);
+}
+
+.np-nav .mud-nav-link.active {
+    background: var(--mud-palette-primary) !important;
+    color: var(--mud-palette-primary-text) !important;
+    border-color: var(--mud-palette-primary);
+}
+
+.np-nav .mud-nav-link.active::before {
+    border-color: var(--np-gold);
+}
+
+.np-nav .mud-nav-link.active .mud-icon-root {
+    color: inherit;
+}
+
+.np-nav .mud-nav-link.mud-nav-link-disabled {
+    opacity: .55;
+}
+
+/* ---------- Carte cousue : bordure en pointillés à l'intérieur ---------- */
+.np-stitch {
+    position: relative;
+}
+
+.np-stitch::before {
+    content: "";
+    position: absolute;
+    inset: 6px;
+    border: 1.5px dashed var(--np-stitch);
+    border-radius: calc(var(--np-radius) - 4px);
+    pointer-events: none;
+}
+
+/* ---------- Accueil : rail de cintres et étiquettes suspendues ---------- */
+.np-hero {
+    max-width: 640px;
+    padding: 8px 0 28px;
+}
+
+.np-rail {
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 0 4px 28px;
+}
+
+.np-rail-track {
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    width: max-content;
+    min-width: 100%;
+    padding-top: 34px;
+}
+
+/* La tringle */
+.np-rail-track::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 5px;
+    border-radius: 3px;
+    background: var(--np-slate);
+}
+
+.np-tag {
+    position: relative;
+    flex: 0 0 132px;
+    min-height: 124px;
+    padding: 34px 12px 14px;
+    border-top: 8px solid var(--tag);
+    border-radius: 6px 6px 16px 16px;
+    background: var(--mud-palette-surface);
+    box-shadow: var(--np-shadow);
+    text-align: center;
+    transform-origin: 50% -34px;
+    animation: np-swing 1.6s ease-out both;
+    animation-delay: calc(var(--i) * 120ms + 200ms);
+    transition: transform .25s ease;
+}
+
+.np-tag:hover {
+    animation: none;
+    transform: rotate(2.5deg);
+}
+
+/* La ficelle */
+.np-tag-string {
+    position: absolute;
+    left: 50%;
+    top: -34px;
+    width: 2px;
+    height: 26px;
+    margin-left: -1px;
+    background: var(--np-slate);
+}
+
+/* L'œillet */
+.np-tag-hole {
+    position: absolute;
+    left: 50%;
+    top: 8px;
+    width: 14px;
+    height: 14px;
+    margin-left: -7px;
+    border-radius: 50%;
+    border: 2px solid var(--np-slate);
+    background: var(--mud-palette-background);
+}
+
+.np-tag-label {
+    font-family: "Poppins", "Inter", sans-serif;
+    font-weight: 600;
+    font-size: 1rem;
+    color: var(--mud-palette-text-primary);
+}
+
+@keyframes np-swing {
+    0%   { transform: rotate(0); }
+    25%  { transform: rotate(5deg); }
+    50%  { transform: rotate(-3.5deg); }
+    75%  { transform: rotate(1.5deg); }
+    100% { transform: rotate(0); }
+}
+
+/* ---------- Mobile ---------- */
+@media (max-width: 599px) {
+    .mud-button-root,
+    .mud-icon-button {
+        min-height: 44px;
+        min-width: 44px;
+    }
+}
+
+.np-bottom-nav-space {
+    padding-bottom: 72px;
+}
+
+/* ---------- Erreur Blazor ---------- */
+#blazor-error-ui {
+    background: #FEF3C7;
+    bottom: 0;
+    box-shadow: 0 -1px 2px rgba(0, 0, 0, .2);
+    display: none;
+    left: 0;
+    padding: .6rem 1.25rem .7rem 1.25rem;
+    position: fixed;
+    width: 100%;
+    z-index: 2000;
+    color: #0F172A;
+}
+
+#blazor-error-ui .dismiss {
+    cursor: pointer;
+    position: absolute;
+    right: .75rem;
+    top: .5rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation-duration: .01ms !important;
+        transition-duration: .01ms !important;
+    }
+}
