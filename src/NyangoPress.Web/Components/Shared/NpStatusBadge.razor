@@ -1,0 +1,70 @@
+@using MudBlazor
+@using NyangoPress.Shared.Orders
+@using NyangoPress.Shared.Delivery
+@using NyangoPress.Shared.Auctions
+@inject LanguageService L
+
+<MudChip T="string" Size="Size.Small" Variant="Variant.Filled" Color="@GetColor()" Class="font-weight-bold">
+    @GetLabel()
+</MudChip>
+
+@code {
+    [Parameter] public object? Status { get; set; }
+
+    private Color GetColor() => Status switch
+    {
+        ItemStatus.Received or OrderStatus.Received or DeliveryStatus.Pending or AuctionLotStatus.Draft => Color.Info,
+        ItemStatus.Sorted or DeliveryStatus.Assigned => Color.Secondary,
+        ItemStatus.InTreatment or OrderStatus.InProgress or DeliveryStatus.EnRoute or AuctionLotStatus.Open => Color.Primary,
+        ItemStatus.QualityCheck or OrderStatus.PartiallyReady or DeliveryStatus.Arrived or DeliveryStatus.NearDestination => Color.Warning,
+        ItemStatus.Ready or OrderStatus.Ready or ItemStatus.Delivered or OrderStatus.Delivered or DeliveryStatus.Delivered or AuctionLotStatus.Awarded or ClaimStatus.Resolved => Color.Success,
+        ItemStatus.Unclaimed or OrderStatus.Unclaimed or OrderStatus.PartiallyUnclaimed or ClaimStatus.Open or ClaimStatus.InReview => Color.Warning,
+        ItemStatus.Cancelled or OrderStatus.Cancelled or DeliveryStatus.Failed or DeliveryStatus.Cancelled or ClaimStatus.Rejected => Color.Error,
+        ItemStatus.Auctioned or AuctionLotStatus.Closed => Color.Tertiary,
+        _ => Color.Default
+    };
+
+    private string GetLabel() => Status switch
+    {
+        ItemStatus.Received => L.IsFrench ? "Reçu" : "Received",
+        ItemStatus.Sorted => L.IsFrench ? "Trié" : "Sorted",
+        ItemStatus.InTreatment => L.IsFrench ? "En traitement" : "In Treatment",
+        ItemStatus.QualityCheck => L.IsFrench ? "Contrôle qualité" : "Quality Check",
+        ItemStatus.Ready => L.IsFrench ? "Prêt" : "Ready",
+        ItemStatus.Delivered => L.IsFrench ? "Livré / Retiré" : "Delivered",
+        ItemStatus.Unclaimed => L.IsFrench ? "Non réclamé" : "Unclaimed",
+        ItemStatus.Auctioned => L.IsFrench ? "Vendu enchères" : "Auctioned",
+        ItemStatus.Cancelled => L.IsFrench ? "Annulé" : "Cancelled",
+
+        OrderStatus.Received => L.IsFrench ? "Reçue" : "Received",
+        OrderStatus.InProgress => L.IsFrench ? "En cours" : "In Progress",
+        OrderStatus.PartiallyReady => L.IsFrench ? "Partiel. prête" : "Partially Ready",
+        OrderStatus.Ready => L.IsFrench ? "Prête" : "Ready",
+        OrderStatus.Delivered => L.IsFrench ? "Livrée / Retirée" : "Delivered",
+        OrderStatus.PartiallyUnclaimed => L.IsFrench ? "Partiel. non réclamée" : "Partially Unclaimed",
+        OrderStatus.Unclaimed => L.IsFrench ? "Non réclamée" : "Unclaimed",
+        OrderStatus.Cancelled => L.IsFrench ? "Annulée" : "Cancelled",
+
+        DeliveryStatus.Pending => L.IsFrench ? "En attente" : "Pending",
+        DeliveryStatus.Assigned => L.IsFrench ? "Affectée" : "Assigned",
+        DeliveryStatus.EnRoute => L.IsFrench ? "En route" : "En Route",
+        DeliveryStatus.Arrived => L.IsFrench ? "Arrivé" : "Arrived",
+        DeliveryStatus.NearDestination => L.IsFrench ? "À proximité" : "Nearby",
+        DeliveryStatus.Delivered => L.IsFrench ? "Livrée" : "Delivered",
+        DeliveryStatus.Failed => L.IsFrench ? "Échec" : "Failed",
+        DeliveryStatus.Cancelled => L.IsFrench ? "Annulée" : "Cancelled",
+
+        AuctionLotStatus.Draft => L.IsFrench ? "Brouillon" : "Draft",
+        AuctionLotStatus.Open => L.IsFrench ? "Ouvert" : "Open",
+        AuctionLotStatus.Closed => L.IsFrench ? "Clôturé" : "Closed",
+        AuctionLotStatus.Awarded => L.IsFrench ? "Adjugé" : "Awarded",
+        AuctionLotStatus.Cancelled => L.IsFrench ? "Annulé" : "Cancelled",
+
+        ClaimStatus.Open => L.IsFrench ? "Ouverte" : "Open",
+        ClaimStatus.InReview => L.IsFrench ? "En analyse" : "In Review",
+        ClaimStatus.Resolved => L.IsFrench ? "Résolue" : "Resolved",
+        ClaimStatus.Rejected => L.IsFrench ? "Rejetée" : "Rejected",
+
+        _ => Status?.ToString() ?? "-"
+    };
+}

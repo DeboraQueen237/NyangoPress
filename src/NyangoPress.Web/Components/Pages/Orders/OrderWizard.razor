@@ -1,0 +1,488 @@
+@page "/orders/new"
+@inject ApiClient Api
+@inject AuthSessionService Session
+@inject LanguageService L
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<PageTitle>NyangoPress — @L.T("Orders.WizardTitle")</PageTitle>
+
+<NpPageHeader Title="@L.T("Orders.WizardTitle")" Subtitle="@(L.IsFrench ? "Dépôt rapide, inspection photo, prix calculé côté serveur et étiquettes QR" : "Fast intake, photo inspection, server pricing and QR labels")" Icon="@Icons.Material.Filled.PointOfSale" />
+
+@if (!Session.IsAuthenticated)
+{
+    <MudAlert Severity="Severity.Warning" Variant="Variant.Filled">
+        Connectez-vous en tant que Caissier (<a href="/login" style="color:#fff;text-decoration:underline;">Connexion rapide</a>) pour enregistrer un dépôt.
+    </MudAlert>
+}
+else if (_createdOrder is not null)
+{
+    <NpCard Title="@($"Commande créée : {_createdOrder.TicketNumber}")" Icon="@Icons.Material.Filled.CheckCircle">
+        <MudAlert Severity="Severity.Success" Class="mb-4">
+            Dépôt enregistré ! Code de suivi client : <b>@_createdOrder.TrackingCode</b> · Total : <b>@_createdOrder.TotalFcfa.ToString("N0") FCFA</b>
+        </MudAlert>
+        <div class="d-flex flex-wrap gap-2">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="@($"/orders/{_createdOrder.Id}")" StartIcon="@Icons.Material.Filled.QrCode2">
+                Voir Ticket & Étiquettes QR
+            </MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Secondary" OnClick="ResetWizard" StartIcon="@Icons.Material.Filled.Add">
+                Nouvelle commande
+            </MudButton>
+        </div>
+    </NpCard>
+}
+else
+{
+    <MudPaper Elevation="1" Class="pa-4 mb-4 rounded-xl" Style="border:1px solid var(--mud-palette-lines-default);">
+        <div class="d-flex flex-wrap gap-2 mb-4">
+            @for (var s = 1; s <= 4; s++)
+            {
+                var step = s;
+                var label = step switch { 1 => L.T("Orders.Step1"), 2 => L.T("Orders.Step2"), 3 => L.T("Orders.Step3"), _ => L.T("Orders.Step4") };
+                <MudChip T="string" Color="@(_step == step ? Color.Primary : (_step > step ? Color.Success : Color.Default))"
+                         Variant="@(_step == step ? Variant.Filled : Variant.Outlined)"
+                         OnClick="@(() => _step = step)">
+                    @label
+                </MudChip>
+            }
+        </div>
+
+        @if (_step == 1)
+        {
+            <MudText Typo="Typo.h6" Class="mb-3">@L.T("Orders.Step1")</MudText>
+            <div class="d-flex flex-wrap gap-2 mb-3">
+                <MudTextField T="string" Value="_customerSearch" ValueChanged="SearchCustomersAsync" DebounceInterval="200" Immediate="true"
+                              Placeholder="Rechercher client par nom ou téléphone..." Variant="Variant.Outlined" Margin="Margin.Dense"
+                              Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Style="flex:1;min-width:240px;" />
+                <MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.PersonAdd" OnClick="@(() => _quickCreateOpen = !_quickCreateOpen)">
+                    Nouveau client rapide
+                </MudButton>
+            </div>
+
+            @if (_quickCreateOpen)
+            {
+                <MudPaper Elevation="0" Class="pa-3 mb-3 rounded-lg" Style="background:rgba(25,181,198,0.08);border:1px solid rgba(25,181,198,0.3);">
+                    <MudGrid Spacing="2">
+                        <MudItem xs="12" sm="4"><MudTextField @bind-Value="_qcName" Label="Nom complet" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+                        <MudItem xs="12" sm="4"><MudTextField @bind-Value="_qcPhone" Label="Téléphone" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+                        <MudItem xs="12" sm="4" Class="d-flex align-center">
+                            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="QuickCreateCustomerAsync">Créer & Sélectionner</MudButton>
+                        </MudItem>
+                    </MudGrid>
+                </MudPaper>
+            }
+
+            <MudGrid Spacing="2">
+                @foreach (var c in _customers)
+                {
+                    var selected = _selectedCustomerId == c.Id;
+                    <MudItem xs="12" sm="6" md="4">
+                        <MudPaper Elevation="@(selected ? 3 : 0)" Class="pa-3 rounded-xl cursor-pointer"
+                                  Style="@($"border:2px solid {(selected ? "#0B3C5D" : "var(--mud-palette-lines-default)")};")"
+                                  @onclick="@(() => SelectCustomer(c))">
+                            <div class="d-flex justify-space-between align-center">
+                                <b>@c.FullName</b>
+                                @if (selected) { <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" /> }
+                            </div>
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">@c.CustomerCode · @c.Phone</MudText>
+                        </MudPaper>
+                    </MudItem>
+                }
+            </MudGrid>
+
+            <div class="d-flex justify-end mt-4">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(_selectedCustomerId == Guid.Empty)" OnClick="@(() => _step = 2)" EndIcon="@Icons.Material.Filled.ArrowForward">
+                    Continuer
+                </MudButton>
+            </div>
+        }
+        else if (_step == 2)
+        {
+            <MudText Typo="Typo.h6" Class="mb-3">@L.T("Orders.Step2")</MudText>
+            <MudGrid Spacing="2" Class="mb-3">
+                <MudItem xs="12" sm="4">
+                    <MudSelect T="string" @bind-Value="_draftGarment" Label="Type de vêtement" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        @foreach (var g in _garments)
+                        {
+                            <MudSelectItem Value="g.Code">@(L.IsFrench ? g.NameFr : g.NameEn)</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudSelect T="string" @bind-Value="_draftService" Label="Service" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        @foreach (var s in _services)
+                        {
+                            <MudSelectItem Value="s.Code">@(L.IsFrench ? s.NameFr : s.NameEn)</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="6" sm="2">
+                    <MudTextField @bind-Value="_draftColor" Label="Couleur" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="6" sm="2">
+                    <MudTextField @bind-Value="_draftBrand" Label="Marque" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <div class="d-flex flex-wrap gap-1 align-center">
+                        @foreach (var defect in _predefinedDefects)
+                        {
+                            var active = _draftDefects.Contains(defect);
+                            <MudChip T="string" Size="Size.Small" Color="@(active ? Color.Warning : Color.Default)"
+                                     Variant="@(active ? Variant.Filled : Variant.Outlined)"
+                                     OnClick="@(() => ToggleDefect(defect))">@defect</MudChip>
+                        }
+                    </div>
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_draftDefectNotes" Label="Notes d'inspection" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" Class="d-flex flex-wrap gap-4 align-center">
+                    <MudCheckBox @bind-Value="_draftItemExpress" Label="Express (+50%)" Color="Color.Warning" />
+                    <MudCheckBox @bind-Value="_draftItemBulky" Label="Volumineux (+35%)" Color="Color.Info" />
+                </MudItem>
+                <MudItem xs="12">
+                    <NpPhotoCapture @bind-Photos="_draftPhotos" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudButton Variant="Variant.Filled" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Add" OnClick="AddDraftItemAsync">
+                        @L.T("Orders.AddItem")
+                    </MudButton>
+                </MudItem>
+            </MudGrid>
+
+            @if (_items.Count > 0)
+            {
+                <MudDivider Class="my-3" />
+                <MudText Typo="Typo.subtitle1" Style="font-weight:700;" Class="mb-2">Articles ajoutés (@_items.Count)</MudText>
+                <MudStack Spacing="2">
+                    @for (var i = 0; i < _items.Count; i++)
+                    {
+                        var idx = i;
+                        var it = _items[idx];
+                        <MudPaper Elevation="0" Class="pa-3 rounded-lg d-flex justify-space-between align-center" Style="border:1px solid var(--mud-palette-lines-default);">
+                            <div>
+                                <b>@_garments.FirstOrDefault(g => g.Code == it.GarmentCode)?.NameFr</b> · @_services.FirstOrDefault(s => s.Code == it.ServiceCode)?.NameFr
+                                @if (it.IsExpress) { <MudChip T="string" Size="Size.Small" Color="Color.Warning">Express</MudChip> }
+                                @if (it.IsBulky) { <MudChip T="string" Size="Size.Small" Color="Color.Info">Volumineux</MudChip> }
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    @it.Color @it.Brand @(it.PhotoDataUrls?.Count ?? 0) photo(s) · @it.DefectNotes
+                                </MudText>
+                            </div>
+                            <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick="@(() => RemoveDraftItemAsync(idx))" />
+                        </MudPaper>
+                    }
+                </MudStack>
+            }
+
+            <div class="d-flex justify-space-between mt-4">
+                <MudButton Variant="Variant.Text" OnClick="@(() => _step = 1)">Précédent</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(_items.Count == 0)" OnClick="GoToStep3Async">Continuer</MudButton>
+            </div>
+        }
+        else if (_step == 3)
+        {
+            <MudText Typo="Typo.h6" Class="mb-3">@L.T("Orders.Step3")</MudText>
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="6">
+                    <MudSelect T="DeliveryOption" Value="_deliveryOption" ValueChanged="OnDeliveryOptionChanged" Label="Mode de remise" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        <MudSelectItem Value="DeliveryOption.StorePickup">Retrait au pressing (0 FCFA)</MudSelectItem>
+                        <MudSelectItem Value="DeliveryOption.HomeDelivery">Livraison à domicile</MudSelectItem>
+                        <MudSelectItem Value="DeliveryOption.CollectAndDeliver">Collecte + Livraison</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="6" Class="d-flex align-center">
+                    <MudCheckBox T="bool" Value="_orderExpress" ValueChanged="OnOrderExpressChanged" Label="Commande Express prioritaire" Color="Color.Warning" />
+                </MudItem>
+
+                @if (_deliveryOption != DeliveryOption.StorePickup)
+                {
+                    <MudItem xs="12" sm="6">
+                        <MudSelect T="Guid?" Value="_deliveryZoneId" ValueChanged="OnZoneChanged" Label="Zone de livraison" Variant="Variant.Outlined" Margin="Margin.Dense">
+                            @foreach (var z in _zones)
+                            {
+                                <MudSelectItem T="Guid?" Value="z.Id">@z.Name (@z.FeeFcfa.ToString("N0") FCFA)</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="_deliveryAddress" Label="Adresse complète de livraison" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                }
+
+                <MudItem xs="12" sm="4">
+                    <MudTextField @bind-Value="_promoCode" Label="Code promo (ex: NYANGO10)" Variant="Variant.Outlined" Margin="Margin.Dense" OnBlur="RefreshPreviewAsync" />
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudNumericField T="decimal" @bind-Value="_initialDeposit" Label="Acompte versé (FCFA)" Min="0" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" sm="4" Class="d-flex align-center">
+                    <MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.Schedule" OnClick="EstimateDateAsync">
+                        @L.T("Orders.EstimateDate")
+                    </MudButton>
+                </MudItem>
+
+                @if (_estimate is not null)
+                {
+                    <MudItem xs="12">
+                        <MudAlert Severity="Severity.Info" Dense="true">
+                            Date estimée : <b>@_estimate.EstimatedReadyAt.ToLocalTime().ToString("dd/MM/yyyy HH:mm")</b>
+                            (Charge actuelle atelier : @_estimate.ActiveWorkshopLoadItems articles · Délai @_estimate.EstimatedTurnaroundHours h)
+                        </MudAlert>
+                    </MudItem>
+                }
+            </MudGrid>
+
+            <div class="d-flex justify-space-between mt-4">
+                <MudButton Variant="Variant.Text" OnClick="@(() => _step = 2)">Précédent</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="GoToStep4Async">Voir Résumé</MudButton>
+            </div>
+        }
+        else
+        {
+            <MudText Typo="Typo.h6" Class="mb-3">@L.T("Orders.Step4")</MudText>
+            @if (_preview is not null)
+            {
+                <MudTable Items="_preview.Lines" Dense="true" Class="mb-3">
+                    <HeaderContent>
+                        <MudTh>Article</MudTh>
+                        <MudTh>Service</MudTh>
+                        <MudTh>Base</MudTh>
+                        <MudTh>Maj.</MudTh>
+                        <MudTh>Remise</MudTh>
+                        <MudTh>Net</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd>@context.GarmentName</MudTd>
+                        <MudTd>@context.ServiceName</MudTd>
+                        <MudTd>@context.BasePriceFcfa.ToString("N0")</MudTd>
+                        <MudTd>@context.SurchargeFcfa.ToString("N0")</MudTd>
+                        <MudTd>-@context.DiscountFcfa.ToString("N0")</MudTd>
+                        <MudTd><b>@context.FinalPriceFcfa.ToString("N0") FCFA</b></MudTd>
+                    </RowTemplate>
+                </MudTable>
+
+                <MudPaper Elevation="0" Class="pa-4 rounded-xl mb-3" Style="background:rgba(11,60,93,0.06);">
+                    <div class="d-flex justify-space-between"><span>Sous-total articles</span><b>@_preview.SubtotalFcfa.ToString("N0") FCFA</b></div>
+                    <div class="d-flex justify-space-between"><span>Frais livraison</span><b>@_preview.DeliveryFeeFcfa.ToString("N0") FCFA</b></div>
+                    <div class="d-flex justify-space-between"><span>Remises</span><b>-@_preview.DiscountFcfa.ToString("N0") FCFA</b></div>
+                    <MudDivider Class="my-2" />
+                    <div class="d-flex justify-space-between"><MudText Typo="Typo.h6">TOTAL À PAYER</MudText><MudText Typo="Typo.h6" Color="Color.Primary">@_preview.TotalFcfa.ToString("N0") FCFA</MudText></div>
+                    <div class="d-flex justify-space-between mt-1"><span>Acompte</span><span>@_initialDeposit.ToString("N0") FCFA</span></div>
+                    <div class="d-flex justify-space-between"><span>Reste à payer</span><b>@Math.Max(0m, _preview.TotalFcfa - _initialDeposit).ToString("N0") FCFA</b></div>
+                </MudPaper>
+            }
+
+            <MudCheckBox @bind-Value="_acceptTerms" Color="Color.Primary" Label="@L.T("Orders.AcceptTerms")" Class="mb-3" />
+
+            <div class="d-flex justify-space-between mt-4">
+                <MudButton Variant="Variant.Text" OnClick="@(() => _step = 3)">Précédent</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Success" Size="Size.Large"
+                           Disabled="@(!_acceptTerms || _submitting)"
+                           StartIcon="@Icons.Material.Filled.CheckCircle" OnClick="SubmitOrderAsync">
+                    @L.T("Orders.SubmitOrder")
+                </MudButton>
+            </div>
+        }
+    </MudPaper>
+}
+
+@code {
+    [SupplyParameterFromQuery] public Guid? CustomerId { get; set; }
+
+    private int _step = 1;
+    private string? _customerSearch;
+    private List<CustomerSummaryDto> _customers = [];
+    private Guid _selectedCustomerId;
+    private bool _quickCreateOpen;
+    private string _qcName = string.Empty;
+    private string _qcPhone = string.Empty;
+
+    private List<GarmentOptionDto> _garments = [];
+    private List<ServiceOptionDto> _services = [];
+    private List<DeliveryZoneDto> _zones = [];
+
+    private string _draftGarment = "SHIRT";
+    private string _draftService = "WASH_IRON";
+    private string? _draftColor;
+    private string? _draftBrand;
+    private string? _draftDefectNotes;
+    private bool _draftItemExpress;
+    private bool _draftItemBulky;
+    private List<string> _draftDefects = [];
+    private List<string> _draftPhotos = [];
+    private readonly string[] _predefinedDefects = ["Tache graisse", "Tache encre", "Bouton manquant", "Déchirure", "Décoloration", "Couture fragile"];
+
+    private List<CreateOrderItemRequest> _items = [];
+    private DeliveryOption _deliveryOption = DeliveryOption.StorePickup;
+    private Guid? _deliveryZoneId;
+    private string? _deliveryAddress;
+    private bool _orderExpress;
+    private string? _promoCode;
+    private decimal _initialDeposit;
+    private bool _acceptTerms = true;
+
+    private EstimatePickupDateResponse? _estimate;
+    private OrderPricePreviewDto? _preview;
+    private OrderDto? _createdOrder;
+    private bool _submitting;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Session.IsAuthenticated) return;
+
+        var cat = await Api.GetCatalogOptionsAsync();
+        if (cat.IsSuccess && cat.Data is not null)
+        {
+            _garments = cat.Data.Garments.ToList();
+            _services = cat.Data.Services.ToList();
+        }
+
+        var z = await Api.GetDeliveryZonesAsync(activeOnly: true);
+        if (z.IsSuccess && z.Data is not null)
+        {
+            _zones = z.Data.ToList();
+            _deliveryZoneId = _zones.FirstOrDefault()?.Id;
+        }
+
+        await SearchCustomersAsync(string.Empty);
+        if (CustomerId.HasValue)
+        {
+            _selectedCustomerId = CustomerId.Value;
+        }
+    }
+
+    private async Task SearchCustomersAsync(string term)
+    {
+        _customerSearch = term;
+        var res = await Api.GetCustomersAsync(new CustomerQueryParams(term, null, 1, 12));
+        if (res.IsSuccess && res.Data is not null)
+            _customers = res.Data.Items.ToList();
+    }
+
+    private void SelectCustomer(CustomerSummaryDto c)
+    {
+        _selectedCustomerId = c.Id;
+    }
+
+    private async Task QuickCreateCustomerAsync()
+    {
+        var res = await Api.CreateCustomerAsync(new CreateCustomerRequest(
+            CustomerType.Individual, _qcName, _qcPhone, _qcPhone, null, null, null, IgnoreDuplicateWarning: true));
+        if (res.IsSuccess && res.Data is not null)
+        {
+            _selectedCustomerId = res.Data.Id;
+            _quickCreateOpen = false;
+            await SearchCustomersAsync(_qcPhone);
+            Snackbar.Add("Client créé et sélectionné.", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add(res.Error?.Message ?? "Erreur", Severity.Error);
+        }
+    }
+
+    private void ToggleDefect(string defect)
+    {
+        if (!_draftDefects.Remove(defect)) _draftDefects.Add(defect);
+    }
+
+    private async Task AddDraftItemAsync()
+    {
+        _items.Add(new CreateOrderItemRequest(
+            _draftGarment, _draftService, _draftItemExpress, _draftItemBulky,
+            _draftColor, _draftBrand, _draftDefects.ToList(), _draftDefectNotes, _draftPhotos.ToList()));
+
+        _draftColor = null;
+        _draftBrand = null;
+        _draftDefectNotes = null;
+        _draftItemExpress = false;
+        _draftItemBulky = false;
+        _draftDefects.Clear();
+        _draftPhotos = [];
+        await RefreshPreviewAsync();
+    }
+
+    private async Task RemoveDraftItemAsync(int idx)
+    {
+        _items.RemoveAt(idx);
+        await RefreshPreviewAsync();
+    }
+
+    private async Task GoToStep3Async()
+    {
+        _step = 3;
+        await EstimateDateAsync();
+        await RefreshPreviewAsync();
+    }
+
+    private async Task GoToStep4Async()
+    {
+        await RefreshPreviewAsync();
+        _step = 4;
+    }
+
+    private async Task OnDeliveryOptionChanged(DeliveryOption opt)
+    {
+        _deliveryOption = opt;
+        await RefreshPreviewAsync();
+    }
+
+    private async Task OnZoneChanged(Guid? zId)
+    {
+        _deliveryZoneId = zId;
+        await RefreshPreviewAsync();
+    }
+
+    private async Task OnOrderExpressChanged(bool val)
+    {
+        _orderExpress = val;
+        await EstimateDateAsync();
+        await RefreshPreviewAsync();
+    }
+
+    private async Task EstimateDateAsync()
+    {
+        var res = await Api.EstimatePickupDateAsync(new EstimatePickupDateRequest(
+            _items.Select(i => i.ServiceCode).ToList(),
+            _orderExpress || _items.Any(i => i.IsExpress),
+            _deliveryOption));
+        if (res.IsSuccess) _estimate = res.Data;
+    }
+
+    private async Task RefreshPreviewAsync()
+    {
+        if (_selectedCustomerId == Guid.Empty || _items.Count == 0) return;
+        var res = await Api.PreviewOrderPriceAsync(new OrderPricePreviewRequest(
+            _selectedCustomerId, _deliveryOption, _deliveryZoneId, _orderExpress, _promoCode, _items));
+        if (res.IsSuccess) _preview = res.Data;
+    }
+
+    private async Task SubmitOrderAsync()
+    {
+        _submitting = true;
+        var res = await Api.CreateOrderAsync(new CreateOrderRequest(
+            _selectedCustomerId, _deliveryOption, _deliveryZoneId, _deliveryAddress, _orderExpress,
+            _estimate?.EstimatedReadyAt, _initialDeposit, _promoCode, _acceptTerms, null, _items));
+        _submitting = false;
+
+        if (res.IsSuccess && res.Data is not null)
+        {
+            _createdOrder = res.Data;
+            Snackbar.Add($"Commande {_createdOrder.TicketNumber} créée !", Severity.Success);
+        }
+        else
+        {
+            Snackbar.Add(res.Error?.Message ?? "Erreur création commande", Severity.Error);
+        }
+    }
+
+    private void ResetWizard()
+    {
+        _createdOrder = null;
+        _items.Clear();
+        _preview = null;
+        _estimate = null;
+        _step = 1;
+        _initialDeposit = 0m;
+    }
+}

@@ -1,0 +1,112 @@
+@page "/storage"
+@inject ApiClient Api
+@inject AuthSessionService Session
+@inject LanguageService L
+@inject ISnackbar Snackbar
+
+<PageTitle>NyangoPress — @L.T("Storage.Title")</PageTitle>
+
+<NpPageHeader Title="@L.T("Storage.Title")" Subtitle="@L.T("Storage.Subtitle")" Icon="@Icons.Material.Filled.Inventory2">
+    <Actions>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.AddLocation" OnClick="@(() => _showNew = true)">
+            Nouvel emplacement
+        </MudButton>
+    </Actions>
+</NpPageHeader>
+
+@if (!Session.IsAuthenticated)
+{
+    <MudAlert Severity="Severity.Warning" Variant="Variant.Filled">Connectez-vous pour consulter les emplacements de stockage.</MudAlert>
+}
+else
+{
+    <MudPaper Elevation="1" Class="pa-4 mb-4 rounded-xl" Style="border:1px solid var(--mud-palette-lines-default);">
+        <div class="d-flex flex-wrap gap-3 align-center">
+            <MudTextField T="string" Value="_search" ValueChanged="OnSearchChanged" DebounceInterval="200" Immediate="true"
+                          Placeholder="Code (ex: A-R1-01)..." Variant="Variant.Outlined" Margin="Margin.Dense" Style="flex:1;min-width:200px;" />
+            <MudChip T="string" Color="@(_occupiedFilter is null ? Color.Primary : Color.Default)" OnClick="@(() => SetFilter(null))">Tous</MudChip>
+            <MudChip T="string" Color="@(_occupiedFilter == true ? Color.Warning : Color.Default)" OnClick="@(() => SetFilter(true))">Occupés</MudChip>
+            <MudChip T="string" Color="@(_occupiedFilter == false ? Color.Success : Color.Default)" OnClick="@(() => SetFilter(false))">Libres</MudChip>
+        </div>
+    </MudPaper>
+
+    <MudGrid Spacing="2">
+        @foreach (var loc in _locations)
+        {
+            <MudItem xs="6" sm="4" md="3" lg="2">
+                <MudPaper Elevation="1" Class="pa-3 rounded-xl"
+                          Style="@($"border:2px solid {(loc.IsOccupied ? "#F59E0B" : "#16A34A")};")">
+                    <div class="d-flex justify-space-between align-center">
+                        <MudText Typo="Typo.subtitle1" Style="font-weight:700;">@loc.Code</MudText>
+                        <MudIcon Icon="@(loc.IsOccupied ? Icons.Material.Filled.Checkroom : Icons.Material.Filled.CheckCircleOutline)"
+                                 Color="@(loc.IsOccupied ? Color.Warning : Color.Success)" Size="Size.Small" />
+                    </div>
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">Allée @loc.Aisle · Rack @loc.Rack · #@loc.HangerNumber</MudText>
+                    @if (loc.IsOccupied)
+                    {
+                        <MudText Typo="Typo.caption" Style="font-weight:600;" Class="d-block mt-1">@loc.CurrentTicketNumber</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">@loc.CurrentItemLabel</MudText>
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.caption" Color="Color.Success" Class="d-block mt-1">Disponible</MudText>
+                    }
+                </MudPaper>
+            </MudItem>
+        }
+    </MudGrid>
+}
+
+<MudDialog @bind-Visible="_showNew" Options="new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true }">
+    <TitleContent><MudText Typo="Typo.h6">Créer un emplacement</MudText></TitleContent>
+    <DialogContent>
+        <MudStack Spacing="2">
+            <MudTextField @bind-Value="_aisle" Label="Allée (ex: C)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            <MudTextField @bind-Value="_rack" Label="Rack (ex: R1)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            <MudTextField @bind-Value="_hanger" Label="N° Cintre (ex: 05)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showNew = false)">Annuler</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreateAsync">Créer</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private List<StorageLocationDto> _locations = [];
+    private bool? _occupiedFilter;
+    private string? _search;
+    private bool _showNew;
+    private string _aisle = "C";
+    private string _rack = "R1";
+    private string _hanger = "01";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Session.IsAuthenticated) await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        var res = await Api.GetStorageLocationsAsync(_occupiedFilter, _search);
+        if (res.IsSuccess && res.Data is not null) _locations = res.Data.ToList();
+    }
+
+    private async Task OnSearchChanged(string v) { _search = v; await LoadAsync(); }
+    private async Task SetFilter(bool? occ) { _occupiedFilter = occ; await LoadAsync(); }
+
+    private async Task CreateAsync()
+    {
+        var res = await Api.CreateStorageLocationAsync(new CreateStorageLocationRequest(_aisle, _rack, _hanger));
+        if (res.IsSuccess)
+        {
+            Snackbar.Add("Emplacement ajouté.", Severity.Success);
+            _showNew = false;
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(res.Error?.Message ?? "Erreur", Severity.Error);
+        }
+    }
+}

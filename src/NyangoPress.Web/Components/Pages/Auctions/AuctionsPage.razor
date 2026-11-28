@@ -1,0 +1,230 @@
+@page "/auctions"
+@inject ApiClient Api
+@inject AuthSessionService Session
+@inject LanguageService L
+@inject ISnackbar Snackbar
+
+<PageTitle>NyangoPress — @L.T("Auctions.Title")</PageTitle>
+
+<NpPageHeader Title="@L.T("Auctions.Title")" Subtitle="@L.T("Auctions.Subtitle")" Icon="@Icons.Material.Filled.Gavel">
+    <Actions>
+        <MudButton Variant="Variant.Outlined" Color="Color.Warning" StartIcon="@Icons.Material.Filled.FindInPage" OnClick="DetectUnclaimedAsync">
+            Détecter articles &gt;60j
+        </MudButton>
+    </Actions>
+</NpPageHeader>
+
+@if (!Session.IsAuthenticated || !Session.HasAnyRole(Roles.Admin, Roles.Manager))
+{
+    <MudAlert Severity="Severity.Warning" Variant="Variant.Filled">
+        Accès réservé aux rôles Manager (MGR) et Administrateur (ADM).
+    </MudAlert>
+}
+else
+{
+    <MudTabs Rounded="true" ApplyEffectsToContainer="true" TabPanelsClass="pa-4">
+        <MudTabPanel Text="@($"Lots aux enchères ({_lots.Count})")" Icon="@Icons.Material.Filled.Gavel">
+            <MudGrid Spacing="3">
+                @foreach (var lot in _lots)
+                {
+                    <MudItem xs="12" md="6">
+                        <NpCard Title="@($"{lot.LotNumber} · {lot.Title}")" Icon="@Icons.Material.Filled.Inventory">
+                            <HeaderActions>
+                                <NpStatusBadge Status="lot.Status" />
+                            </HeaderActions>
+                            <ChildContent>
+                                <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-2">@lot.Description</MudText>
+                                <div class="d-flex justify-space-between">
+                                    <span>Mise à prix : <b>@lot.StartingPriceFcfa.ToString("N0") FCFA</b></span>
+                                    <span>Offre max : <b style="color:#0E7490;">@lot.CurrentHighestBidFcfa.ToString("N0") FCFA</b></span>
+                                </div>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block mt-1">
+                                    Meilleur enchérisseur : @(lot.WinningBidderName ?? "Aucune offre") · Clôture : @lot.ClosesAt.ToLocalTime().ToString("dd/MM/yyyy")
+                                </MudText>
+
+                                <MudDivider Class="my-2" />
+                                <MudText Typo="Typo.caption" Style="font-weight:700;">Articles du lot (@lot.Items.Count) :</MudText>
+                                @foreach (var it in lot.Items)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@it.TicketNumber · @it.GarmentName (@it.QrCode)</MudChip>
+                                }
+
+                                <div class="d-flex flex-wrap gap-2 mt-3">
+                                    @if (lot.Status == AuctionLotStatus.Draft)
+                                    {
+                                        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary" OnClick="@(() => OpenLotAsync(lot.Id))">Ouvrir enchères</MudButton>
+                                    }
+                                    @if (lot.Status == AuctionLotStatus.Open)
+                                    {
+                                        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Secondary" OnClick="@(() => OpenBidModal(lot))">Placer une offre</MudButton>
+                                        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success" OnClick="@(() => AwardLotAsync(lot.Id))">Clôturer & Adjuger</MudButton>
+                                    }
+                                </div>
+                            </ChildContent>
+                        </NpCard>
+                    </MudItem>
+                }
+            </MudGrid>
+        </MudTabPanel>
+
+        <MudTabPanel Text="@($"Articles non réclamés / Éligibles ({_candidates.Count})")" Icon="@Icons.Material.Filled.HourglassBottom">
+            <div class="d-flex flex-wrap gap-2 mb-3">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(_selectedItemIds.Count == 0)" OnClick="@(() => _showCreateLot = true)">
+                    Créer un lot avec @_selectedItemIds.Count article(s)
+                </MudButton>
+            </div>
+            <MudTable Items="_candidates" Dense="true" Hover="true">
+                <HeaderContent>
+                    <MudTh></MudTh>
+                    <MudTh>Ticket / QR</MudTh>
+                    <MudTh>Client</MudTh>
+                    <MudTh>Article</MudTh>
+                    <MudTh>Jours depuis Prêt</MudTh>
+                    <MudTh>Frais garde</MudTh>
+                    <MudTh>Statut</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>
+                        <MudCheckBox T="bool" Value="@_selectedItemIds.Contains(context.OrderItemId)"
+                                     ValueChanged="@(v => ToggleItemSelection(context.OrderItemId, v))" />
+                    </MudTd>
+                    <MudTd><b>@context.TicketNumber</b><br /><small>@context.QrCode</small></MudTd>
+                    <MudTd>@context.CustomerName<br /><small>@context.CustomerPhone</small></MudTd>
+                    <MudTd>@context.GarmentName (@context.ServiceName)</MudTd>
+                    <MudTd><b>@context.DaysSinceReady j</b></MudTd>
+                    <MudTd>@context.AccruedStorageFeeFcfa.ToString("N0") FCFA</MudTd>
+                    <MudTd><NpStatusBadge Status="context.CurrentStatus" /></MudTd>
+                </RowTemplate>
+            </MudTable>
+        </MudTabPanel>
+    </MudTabs>
+}
+
+<MudDialog @bind-Visible="_showCreateLot" Options="new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true }">
+    <TitleContent><MudText Typo="Typo.h6">Créer un lot d'enchères</MudText></TitleContent>
+    <DialogContent>
+        <MudStack Spacing="2">
+            <MudTextField @bind-Value="_lotTitle" Label="Titre du lot" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            <MudTextField @bind-Value="_lotDesc" Label="Description" Lines="2" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            <MudNumericField T="decimal" @bind-Value="_lotStartPrice" Label="Prix de départ (FCFA)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            <MudNumericField T="decimal" @bind-Value="_lotMinInc" Label="Palier minimum (FCFA)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showCreateLot = false)">Annuler</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreateLotAsync">Créer & Ouvrir</MudButton>
+    </DialogActions>
+</MudDialog>
+
+<MudDialog @bind-Visible="_showBidModal" Options="new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true }">
+    <TitleContent><MudText Typo="Typo.h6">Nouvelle offre</MudText></TitleContent>
+    <DialogContent>
+        <MudStack Spacing="2">
+            <MudTextField @bind-Value="_bidderName" Label="Nom de l'enchérisseur" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            <MudTextField @bind-Value="_bidderPhone" Label="Téléphone" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            <MudNumericField T="decimal" @bind-Value="_bidAmount" Label="Montant (FCFA)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showBidModal = false)">Annuler</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="PlaceBidAsync">Valider l'offre</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private List<AuctionLotDto> _lots = [];
+    private List<UnclaimedCandidateDto> _candidates = [];
+    private readonly HashSet<Guid> _selectedItemIds = [];
+
+    private bool _showCreateLot;
+    private string _lotTitle = "Lot articles non réclamés";
+    private string? _lotDesc;
+    private decimal _lotStartPrice = 5000m;
+    private decimal _lotMinInc = 500m;
+
+    private bool _showBidModal;
+    private Guid _bidLotId;
+    private string _bidderName = string.Empty;
+    private string _bidderPhone = string.Empty;
+    private decimal _bidAmount;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Session.IsAuthenticated && Session.HasAnyRole(Roles.Admin, Roles.Manager))
+            await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        var lots = await Api.GetAuctionLotsAsync();
+        if (lots.IsSuccess && lots.Data is not null) _lots = lots.Data.ToList();
+        var cand = await Api.GetUnclaimedCandidatesAsync();
+        if (cand.IsSuccess && cand.Data is not null) _candidates = cand.Data.ToList();
+    }
+
+    private async Task DetectUnclaimedAsync()
+    {
+        var res = await Api.DetectUnclaimedAsync(new DetectUnclaimedRequest(60, 7, 200m, true));
+        if (res.IsSuccess && res.Data is not null)
+        {
+            Snackbar.Add($"{res.Data.MarkedUnclaimedCount} article(s) basculé(s) en 'Non réclamé'.", Severity.Info);
+            await LoadAsync();
+        }
+    }
+
+    private void ToggleItemSelection(Guid id, bool selected)
+    {
+        if (selected) _selectedItemIds.Add(id);
+        else _selectedItemIds.Remove(id);
+    }
+
+    private async Task CreateLotAsync()
+    {
+        var res = await Api.CreateAuctionLotAsync(new CreateAuctionLotRequest(
+            _lotTitle, _lotDesc, _lotStartPrice, _lotMinInc, DateTimeOffset.UtcNow.AddDays(5), true, _selectedItemIds.ToList()));
+        if (res.IsSuccess)
+        {
+            Snackbar.Add("Lot d'enchères créé !", Severity.Success);
+            _selectedItemIds.Clear();
+            _showCreateLot = false;
+            await LoadAsync();
+        }
+        else Snackbar.Add(res.Error?.Message ?? "Erreur", Severity.Error);
+    }
+
+    private async Task OpenLotAsync(Guid lotId)
+    {
+        var res = await Api.OpenAuctionLotAsync(lotId);
+        if (res.IsSuccess) await LoadAsync();
+    }
+
+    private void OpenBidModal(AuctionLotDto lot)
+    {
+        _bidLotId = lot.Id;
+        _bidAmount = lot.Bids.Count == 0 ? lot.StartingPriceFcfa : lot.CurrentHighestBidFcfa + lot.MinimumIncrementFcfa;
+        _showBidModal = true;
+    }
+
+    private async Task PlaceBidAsync()
+    {
+        var res = await Api.PlaceBidAsync(_bidLotId, new PlaceBidRequest(_bidderName, _bidderPhone, _bidAmount));
+        if (res.IsSuccess)
+        {
+            Snackbar.Add("Offre enregistrée !", Severity.Success);
+            _showBidModal = false;
+            await LoadAsync();
+        }
+        else Snackbar.Add(res.Error?.Message ?? "Offre refusée", Severity.Error);
+    }
+
+    private async Task AwardLotAsync(Guid lotId)
+    {
+        var res = await Api.AwardAuctionLotAsync(lotId, new AwardAuctionLotRequest("Adjugé par le manager"));
+        if (res.IsSuccess)
+        {
+            Snackbar.Add("Lot adjugé avec succès !", Severity.Success);
+            await LoadAsync();
+        }
+        else Snackbar.Add(res.Error?.Message ?? "Erreur", Severity.Error);
+    }
+}

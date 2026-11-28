@@ -1,0 +1,38 @@
+@using MudBlazor
+
+<MudCard Elevation="1" Class="@($"rounded-xl {Class}")" Style="border:1px solid var(--mud-palette-lines-default);">
+    @if (!string.IsNullOrWhiteSpace(Title))
+    {
+        <MudCardHeader>
+            <CardHeaderAvatar>
+                @if (!string.IsNullOrWhiteSpace(Icon))
+                {
+                    <MudIcon Icon="@Icon" Color="Color.Primary" />
+                }
+            </CardHeaderAvatar>
+            <CardHeaderContent>
+                <MudText Typo="Typo.h6">@Title</MudText>
+                @if (!string.IsNullOrWhiteSpace(Subtitle))
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Secondary">@Subtitle</MudText>
+                }
+            </CardHeaderContent>
+            <CardHeaderActions>
+                @HeaderActions
+            </CardHeaderActions>
+        </MudCardHeader>
+        <MudDivider />
+    }
+    <MudCardContent>
+        @ChildContent
+    </MudCardContent>
+</MudCard>
+
+@code {
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public string? Subtitle { get; set; }
+    [Parameter] public string? Icon { get; set; }
+    [Parameter] public string Class { get; set; } = string.Empty;
+    [Parameter] public RenderFragment? HeaderActions { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

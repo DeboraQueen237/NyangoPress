@@ -1,0 +1,34 @@
+@using MudBlazor
+
+<MudPaper Elevation="0" Class="pa-4 mb-4 rounded-xl" Style="border:1px solid var(--mud-palette-lines-default); background: var(--mud-palette-surface);">
+    <div class="d-flex flex-wrap justify-space-between align-center gap-3">
+        <div class="d-flex align-center gap-3">
+            @if (!string.IsNullOrWhiteSpace(Icon))
+            {
+                <MudAvatar Color="Color.Primary" Variant="Variant.Filled" Size="Size.Medium">
+                    <MudIcon Icon="@Icon" />
+                </MudAvatar>
+            }
+            <div>
+                <MudText Typo="Typo.h5" Color="Color.Primary">@Title</MudText>
+                @if (!string.IsNullOrWhiteSpace(Subtitle))
+                {
+                    <MudText Typo="Typo.body2" Color="Color.Secondary">@Subtitle</MudText>
+                }
+            </div>
+        </div>
+        @if (Actions is not null)
+        {
+            <div class="d-flex flex-wrap align-center gap-2">
+                @Actions
+            </div>
+        }
+    </div>
+</MudPaper>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+    [Parameter] public string? Subtitle { get; set; }
+    [Parameter] public string? Icon { get; set; }
+    [Parameter] public RenderFragment? Actions { get; set; }
+}

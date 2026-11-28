@@ -1,0 +1,21 @@
+{
+  "name": "NyangoPress — Le Pressing Connecté",
+  "short_name": "NyangoPress",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0B3C5D",
+  "theme_color": "#0B3C5D",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/branding/logo-icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/branding/logo-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

@@ -1,0 +1,104 @@
+@page "/login"
+@inject ApiClient Api
+@inject AuthSessionService Session
+@inject LanguageService L
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+
+<PageTitle>NyangoPress — @L.T("Nav.Login")</PageTitle>
+
+<div class="d-flex justify-center align-center py-6">
+    <MudPaper Elevation="3" Class="pa-6 rounded-xl" Style="width:100%;max-width:480px;border:1px solid var(--mud-palette-lines-default);">
+        <div class="d-flex flex-column align-center mb-5">
+            <img src="/branding/logo-full.svg" alt="NyangoPress" style="max-width:240px;" />
+            <MudText Typo="Typo.subtitle1" Color="Color.Secondary" Class="mt-2">
+                @(L.IsFrench ? "Connexion sécurisée du personnel" : "Secure staff sign-in")
+            </MudText>
+        </div>
+
+        <MudTextField @bind-Value="_identifier" Label="@(L.IsFrench ? "E-mail ou code rôle (CAI, OPE, LIV, MGR, ADM)" : "Email or role code")"
+                      Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-3"
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Person" />
+
+        <MudTextField @bind-Value="_password" Label="@(L.IsFrench ? "Mot de passe (démo : nyango2026)" : "Password (demo: nyango2026)")"
+                      InputType="InputType.Password" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-4"
+                      Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Lock" />
+
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Size="Size.Large"
+                   OnClick="SignInAsync" Disabled="_busy">
+            @L.T("Nav.Login")
+        </MudButton>
+
+        <MudDivider Class="my-5" />
+
+        <MudText Typo="Typo.subtitle2" Color="Color.Secondary" Class="mb-3" Align="Align.Center">
+            @(L.IsFrench ? "Accès direct par rôle (Environnement de démonstration)" : "One-click role access (Demo Environment)")
+        </MudText>
+
+        <MudGrid Spacing="2">
+            <MudItem xs="6">
+                <MudButton Variant="Variant.Outlined" Color="Color.Primary" FullWidth="true" OnClick="@(() => DemoSignInAsync(Roles.Cashier))">
+                    Caissier (CAI)
+                </MudButton>
+            </MudItem>
+            <MudItem xs="6">
+                <MudButton Variant="Variant.Outlined" Color="Color.Secondary" FullWidth="true" OnClick="@(() => DemoSignInAsync(Roles.Operator))">
+                    Opérateur (OPE)
+                </MudButton>
+            </MudItem>
+            <MudItem xs="6">
+                <MudButton Variant="Variant.Outlined" Color="Color.Info" FullWidth="true" OnClick="@(() => DemoSignInAsync(Roles.Driver))">
+                    Livreur (LIV)
+                </MudButton>
+            </MudItem>
+            <MudItem xs="6">
+                <MudButton Variant="Variant.Outlined" Color="Color.Warning" FullWidth="true" OnClick="@(() => DemoSignInAsync(Roles.Manager))">
+                    Manager (MGR)
+                </MudButton>
+            </MudItem>
+            <MudItem xs="12">
+                <MudButton Variant="Variant.Filled" Color="Color.Dark" FullWidth="true" OnClick="@(() => DemoSignInAsync(Roles.Admin))">
+                    Administrateur (ADM)
+                </MudButton>
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+</div>
+
+@code {
+    private string _identifier = "caissier@nyangopress.cm";
+    private string _password = "nyango2026";
+    private bool _busy;
+
+    private async Task SignInAsync()
+    {
+        _busy = true;
+        var res = await Api.LoginAsync(_identifier, _password);
+        _busy = false;
+        if (res.IsSuccess && res.Data is not null)
+        {
+            Snackbar.Add($"Bienvenue {res.Data.User.DisplayName}", Severity.Success);
+            Nav.NavigateTo(res.Data.User.DefaultRoute);
+        }
+        else
+        {
+            Snackbar.Add(res.Error?.Message ?? "Identifiants invalides", Severity.Error);
+        }
+    }
+
+    private async Task DemoSignInAsync(string role)
+    {
+        _busy = true;
+        var res = await Api.DemoLoginAsync(role);
+        _busy = false;
+        if (res.IsSuccess && res.Data is not null)
+        {
+            Snackbar.Add($"Connecté : {res.Data.User.DisplayName} ({res.Data.User.Role})", Severity.Success);
+            Nav.NavigateTo(res.Data.User.DefaultRoute);
+        }
+        else
+        {
+            Snackbar.Add(res.Error?.Message ?? "Erreur de connexion", Severity.Error);
+        }
+    }
+}

@@ -1,0 +1,48 @@
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject AuthSessionService Session
+@inject LanguageService L
+
+<MudThemeProvider Theme="@NyangoPressTheme.Theme" IsDarkMode="@Session.IsDarkMode" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="1" Color="Color.Primary">
+        <a href="/suivi" class="d-flex align-center text-decoration-none">
+            <img src="/branding/logo-icon.svg" alt="NyangoPress" style="height:34px;width:34px;border-radius:8px;border:1px solid rgba(255,255,255,0.25);" />
+            <MudText Typo="Typo.h6" Class="ml-2" Style="color:#FFFFFF;font-weight:700;">NyangoPress</MudText>
+        </a>
+        <MudSpacer />
+        <NpLanguageSwitcher />
+        <MudIconButton Icon="@(Session.IsDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
+                       Color="Color.Inherit"
+                       OnClick="@(() => Session.ToggleDarkMode())" />
+        <MudButton Variant="Variant.Text" Color="Color.Inherit" Href="/" Class="ml-1 d-none d-sm-inline-flex">
+            @(L.IsFrench ? "Espace Pro" : "Staff Portal")
+        </MudButton>
+    </MudAppBar>
+
+    <MudMainContent>
+        <MudContainer MaxWidth="MaxWidth.Large" Class="py-5 px-3 px-sm-5">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    protected override void OnInitialized()
+    {
+        Session.OnChange += HandleStateChanged;
+        L.OnChange += HandleStateChanged;
+    }
+
+    private void HandleStateChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Session.OnChange -= HandleStateChanged;
+        L.OnChange -= HandleStateChanged;
+    }
+}

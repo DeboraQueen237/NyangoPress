@@ -1,0 +1,230 @@
+@page "/production"
+@implements IDisposable
+@inject ApiClient Api
+@inject AuthSessionService Session
+@inject SignalRService SignalR
+@inject LanguageService L
+@inject ISnackbar Snackbar
+
+<PageTitle>NyangoPress — @L.T("Production.Title")</PageTitle>
+
+<NpPageHeader Title="@L.T("Production.Title")" Subtitle="@L.T("Production.Subtitle")" Icon="@Icons.Material.Filled.ViewKanban">
+    <Actions>
+        <MudSelect T="string" Value="_serviceFilter" ValueChanged="OnServiceFilterChanged" Label="Traitement" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" Style="min-width:170px;">
+            @foreach (var s in _services)
+            {
+                <MudSelectItem T="string" Value="s.Code">@s.NameFr</MudSelectItem>
+            }
+        </MudSelect>
+        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Refresh" OnClick="LoadAsync">@L.T("Common.Refresh")</MudButton>
+    </Actions>
+</NpPageHeader>
+
+@if (!Session.IsAuthenticated)
+{
+    <MudAlert Severity="Severity.Warning" Variant="Variant.Filled">
+        Connectez-vous (<a href="/login" style="color:#fff;text-decoration:underline;">Opérateur / Manager / Caissier</a>) pour piloter la file de production.
+    </MudAlert>
+}
+else
+{
+    <div class="mb-4">
+        <NpQrScanner OnQrScanned="HandleQrScanAsync" />
+    </div>
+
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+    }
+    else
+    {
+        <div class="np-kanban-grid">
+            @foreach (var col in _columns)
+            {
+                var cards = _items.Where(i => i.Status == col.Status).ToList();
+                <div class="np-kanban-column">
+                    <div class="d-flex justify-space-between align-center mb-3">
+                        <MudText Typo="Typo.subtitle1" Style="font-weight:700;">@col.Label</MudText>
+                        <MudChip T="string" Size="Size.Small" Color="@col.Color">@cards.Count</MudChip>
+                    </div>
+
+                    <MudStack Spacing="2">
+                        @foreach (var card in cards)
+                        {
+                            <MudPaper Elevation="1" Class="pa-3 rounded-xl np-card-hover"
+                                      Style="@($"border-left:4px solid {(card.IsExpress ? "#F59E0B" : "#0E7490")};")">
+                                <div class="d-flex justify-space-between align-center mb-1">
+                                    <MudLink Href="@($"/orders/{card.OrderId}")" Typo="Typo.caption" Style="font-weight:700;">@card.TicketNumber</MudLink>
+                                    @if (card.IsExpress)
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Color="Color.Warning">EXPRESS</MudChip>
+                                    }
+                                </div>
+                                <MudText Typo="Typo.subtitle2" Style="font-weight:700;">@card.GarmentName</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">@card.ServiceName · @card.CustomerName</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary" Class="d-block">
+                                    QR: @card.QrCode
+                                    @if (!string.IsNullOrWhiteSpace(card.StorageLocationCode))
+                                    {
+                                        <span> · <b>@card.StorageLocationCode</b></span>
+                                    }
+                                </MudText>
+                                @if (card.SubStep != TreatmentSubStep.None)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Info" Class="mt-1">@card.SubStep</MudChip>
+                                }
+
+                                <div class="d-flex flex-wrap gap-1 mt-2">
+                                    @if (card.Status == ItemStatus.Received)
+                                    {
+                                        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary" OnClick="@(() => AdvanceAsync(card, ItemStatus.Sorted))">Trier →</MudButton>
+                                    }
+                                    else if (card.Status == ItemStatus.Sorted)
+                                    {
+                                        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary" OnClick="@(() => AdvanceAsync(card, ItemStatus.InTreatment, TreatmentSubStep.Washing))">Traiter →</MudButton>
+                                    }
+                                    else if (card.Status == ItemStatus.InTreatment)
+                                    {
+                                        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Warning" OnClick="@(() => AdvanceAsync(card, ItemStatus.QualityCheck))">Contrôle →</MudButton>
+                                    }
+                                    else if (card.Status == ItemStatus.QualityCheck)
+                                    {
+                                        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success" OnClick="@(() => OpenReadyModal(card))">Prêt ✓</MudButton>
+                                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error" OnClick="@(() => AdvanceAsync(card, ItemStatus.InTreatment, TreatmentSubStep.StainRemoval, "Reprise qualité"))">Reprise</MudButton>
+                                    }
+                                    else if (card.Status == ItemStatus.Ready)
+                                    {
+                                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Success" Href="@($"/orders/{card.OrderId}")">Retrait / Détail</MudButton>
+                                    }
+                                </div>
+                            </MudPaper>
+                        }
+                    </MudStack>
+                </div>
+            }
+        </div>
+    }
+}
+
+<MudDialog @bind-Visible="_showReadyModal" Options="new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true }">
+    <TitleContent><MudText Typo="Typo.h6">Rangement & Mise « Prêt »</MudText></TitleContent>
+    <DialogContent>
+        <MudSelect T="Guid?" @bind-Value="_selectedLocationId" Label="Emplacement (Allée-Rack-Cintre)" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
+            @foreach (var loc in _freeLocations)
+            {
+                <MudSelectItem T="Guid?" Value="loc.Id">@loc.Code</MudSelectItem>
+            }
+        </MudSelect>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showReadyModal = false)">@L.T("Common.Cancel")</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="ConfirmReadyAsync">Valider Prêt</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private sealed record KanbanCol(ItemStatus Status, string Label, Color Color);
+
+    private readonly KanbanCol[] _columns =
+    [
+        new(ItemStatus.Received, "1. Reçu", Color.Info),
+        new(ItemStatus.Sorted, "2. Trié", Color.Secondary),
+        new(ItemStatus.InTreatment, "3. En traitement", Color.Primary),
+        new(ItemStatus.QualityCheck, "4. Contrôle qualité", Color.Warning),
+        new(ItemStatus.Ready, "5. Prêt (Rack)", Color.Success)
+    ];
+
+    private List<ProductionItemCardDto> _items = [];
+    private List<ServiceOptionDto> _services = [];
+    private List<StorageLocationDto> _freeLocations = [];
+    private string? _serviceFilter;
+    private bool _loading;
+
+    private bool _showReadyModal;
+    private ProductionItemCardDto? _readyTargetCard;
+    private Guid? _selectedLocationId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!Session.IsAuthenticated) return;
+
+        var cat = await Api.GetCatalogOptionsAsync();
+        if (cat.IsSuccess && cat.Data is not null) _services = cat.Data.Services.ToList();
+
+        SignalR.OnProductionChanged += HandleSignalRRefresh;
+        await SignalR.ConnectOrdersHubAsync();
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        var res = await Api.GetProductionQueueAsync(null, _serviceFilter);
+        _loading = false;
+        if (res.IsSuccess && res.Data is not null) _items = res.Data.ToList();
+    }
+
+    private async Task OnServiceFilterChanged(string? svc)
+    {
+        _serviceFilter = svc;
+        await LoadAsync();
+    }
+
+    private async Task HandleQrScanAsync(string qrCode)
+    {
+        var res = await Api.ScanQrAsync(new QrScanRequest(qrCode));
+        if (res.IsSuccess && res.Data is not null)
+        {
+            Snackbar.Add($"QR {qrCode} : {res.Data.PreviousStatus} → {res.Data.CurrentStatus}", Severity.Success);
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(res.Error?.Message ?? "QR introuvable", Severity.Error);
+        }
+    }
+
+    private async Task AdvanceAsync(ProductionItemCardDto card, ItemStatus target, TreatmentSubStep subStep = TreatmentSubStep.None, string? notes = null)
+    {
+        var res = await Api.AdvanceItemStatusAsync(card.ItemId, new AdvanceItemStatusRequest(target, subStep, notes, null, card.RowVersion));
+        if (res.IsSuccess)
+        {
+            Snackbar.Add($"{card.GarmentName} → {target}", Severity.Success);
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(res.Error?.Message ?? "Erreur transition", Severity.Error);
+        }
+    }
+
+    private async Task OpenReadyModal(ProductionItemCardDto card)
+    {
+        _readyTargetCard = card;
+        var locs = await Api.GetStorageLocationsAsync(occupiedOnly: false);
+        _freeLocations = locs.IsSuccess && locs.Data is not null ? locs.Data.ToList() : [];
+        _selectedLocationId = _freeLocations.FirstOrDefault()?.Id;
+        _showReadyModal = true;
+    }
+
+    private async Task ConfirmReadyAsync()
+    {
+        if (_readyTargetCard is null) return;
+        var res = await Api.AdvanceItemStatusAsync(_readyTargetCard.ItemId, new AdvanceItemStatusRequest(
+            ItemStatus.Ready, TreatmentSubStep.None, "Contrôle qualité OK", _selectedLocationId, _readyTargetCard.RowVersion));
+        if (res.IsSuccess)
+        {
+            Snackbar.Add("Article prêt et rangé !", Severity.Success);
+            _showReadyModal = false;
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(res.Error?.Message ?? "Erreur", Severity.Error);
+        }
+    }
+
+    private void HandleSignalRRefresh() => InvokeAsync(LoadAsync);
+
+    public void Dispose() => SignalR.OnProductionChanged -= HandleSignalRRefresh;
+}

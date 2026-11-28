@@ -1,0 +1,403 @@
+@page "/customers"
+@inject ApiClient Api
+@inject AuthSessionService Session
+@inject LanguageService L
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+
+<PageTitle>NyangoPress — @L.T("Customers.Title")</PageTitle>
+
+<NpPageHeader Title="@L.T("Customers.Title")" Subtitle="@L.T("Customers.Subtitle")" Icon="@Icons.Material.Filled.People">
+    <Actions>
+        @if (Session.HasAnyRole(Roles.Admin, Roles.Manager))
+        {
+            <MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.MergeType" OnClick="OpenMergeDialog">
+                @L.T("Customers.MergeDuplicates")
+            </MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.UploadFile" OnClick="@(() => _showImportDialog = true)">
+                @L.T("Common.Import")
+            </MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Success" StartIcon="@Icons.Material.Filled.Download" OnClick="ExportExcelAsync">
+                @L.T("Common.ExportExcel")
+            </MudButton>
+        }
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PersonAdd" OnClick="OpenCreateDialog">
+            @L.T("Customers.New")
+        </MudButton>
+    </Actions>
+</NpPageHeader>
+
+@if (!Session.IsAuthenticated)
+{
+    <MudAlert Severity="Severity.Warning" Variant="Variant.Filled" Class="mb-4">
+        Veuillez vous connecter (<a href="/login" style="color:#fff;text-decoration:underline;">Connexion</a>) en tant que Caissier, Manager ou Admin pour gérer les clients.
+    </MudAlert>
+}
+else
+{
+    <MudPaper Elevation="1" Class="pa-4 mb-4 rounded-xl" Style="border:1px solid var(--mud-palette-lines-default);">
+        <div class="d-flex flex-wrap gap-3 align-center justify-space-between">
+            <MudTextField T="string" Value="_search" ValueChanged="OnSearchChanged"
+                          DebounceInterval="220" Immediate="true"
+                          Placeholder="@(L.IsFrench ? "Nom, téléphone, code client, N° ticket ou QR..." : "Name, phone, code, ticket or QR...")"
+                          Variant="Variant.Outlined" Margin="Margin.Dense"
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search"
+                          Style="min-width:260px;flex:1;" />
+
+            <div class="d-flex flex-wrap gap-1">
+                <MudChip T="string" Color="@(_typeFilter is null ? Color.Primary : Color.Default)" Variant="Variant.Filled" OnClick="@(() => SetTypeFilter(null))">@L.T("Customers.All")</MudChip>
+                <MudChip T="string" Color="@(_typeFilter == CustomerType.Individual ? Color.Primary : Color.Default)" Variant="Variant.Filled" OnClick="@(() => SetTypeFilter(CustomerType.Individual))">@L.T("Customers.Individual")</MudChip>
+                <MudChip T="string" Color="@(_typeFilter == CustomerType.Corporate ? Color.Primary : Color.Default)" Variant="Variant.Filled" OnClick="@(() => SetTypeFilter(CustomerType.Corporate))">@L.T("Customers.Corporate")</MudChip>
+            </div>
+        </div>
+    </MudPaper>
+
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mb-3" />
+    }
+    else if (_result is null || _result.Items.Count == 0)
+    {
+        <NpCard>
+            <div class="d-flex flex-column align-center py-8">
+                <MudIcon Icon="@Icons.Material.Filled.PersonOff" Size="Size.Large" Color="Color.Secondary" />
+                <MudText Typo="Typo.h6" Class="mt-2">@L.T("Common.Empty")</MudText>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mt-3" OnClick="OpenCreateDialog">@L.T("Customers.New")</MudButton>
+            </div>
+        </NpCard>
+    }
+    else
+    {
+        <div class="np-desktop-only">
+            <MudTable Items="_result.Items" Hover="true" Dense="true" Elevation="1" Class="rounded-xl">
+                <HeaderContent>
+                    <MudTh>Code</MudTh>
+                    <MudTh>@L.T("Customers.FullName")</MudTh>
+                    <MudTh>@L.T("Customers.Phone")</MudTh>
+                    <MudTh>Type</MudTh>
+                    <MudTh>@L.T("Customers.OrdersCount")</MudTh>
+                    <MudTh>@L.T("Customers.Balance")</MudTh>
+                    <MudTh>@L.T("Customers.Points")</MudTh>
+                    <MudTh>@L.T("Common.Actions")</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Code"><MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@context.CustomerCode</MudChip></MudTd>
+                    <MudTd DataLabel="@L.T("Customers.FullName")">
+                        <MudText Typo="Typo.body2" Style="font-weight:600;">@context.FullName</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">@context.Email</MudText>
+                    </MudTd>
+                    <MudTd DataLabel="@L.T("Customers.Phone")">@context.Phone</MudTd>
+                    <MudTd DataLabel="Type">
+                        <MudChip T="string" Size="Size.Small" Color="@(context.CustomerType == CustomerType.Corporate ? Color.Tertiary : Color.Info)">
+                            @(context.CustomerType == CustomerType.Corporate ? "B2B Pro" : "Particulier")
+                        </MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="@L.T("Customers.OrdersCount")">@context.OrdersCount</MudTd>
+                    <MudTd DataLabel="@L.T("Customers.Balance")">
+                        <MudText Color="@(context.OutstandingBalanceFcfa > 0 ? Color.Error : Color.Success)" Style="font-weight:600;">
+                            @context.OutstandingBalanceFcfa.ToString("N0") FCFA
+                        </MudText>
+                    </MudTd>
+                    <MudTd DataLabel="@L.T("Customers.Points")">@context.LoyaltyPoints pts</MudTd>
+                    <MudTd>
+                        <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary" Href="@($"/customers/{context.Id}")" StartIcon="@Icons.Material.Filled.Visibility">
+                            @L.T("Common.View")
+                        </MudButton>
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        </div>
+
+        <div class="np-mobile-only">
+            <MudStack Spacing="2">
+                @foreach (var c in _result.Items)
+                {
+                    <MudPaper Elevation="1" Class="pa-3 rounded-xl" Style="border:1px solid var(--mud-palette-lines-default);">
+                        <div class="d-flex justify-space-between align-start">
+                            <div>
+                                <MudText Typo="Typo.subtitle1" Style="font-weight:700;">@c.FullName</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">@c.CustomerCode · @c.Phone</MudText>
+                            </div>
+                            <MudChip T="string" Size="Size.Small" Color="@(c.CustomerType == CustomerType.Corporate ? Color.Tertiary : Color.Info)">
+                                @(c.CustomerType == CustomerType.Corporate ? "Pro" : "Part.")
+                            </MudChip>
+                        </div>
+                        <div class="d-flex justify-space-between align-center mt-3">
+                            <MudText Typo="Typo.body2" Color="@(c.OutstandingBalanceFcfa > 0 ? Color.Error : Color.Success)" Style="font-weight:600;">
+                                @c.OutstandingBalanceFcfa.ToString("N0") FCFA
+                            </MudText>
+                            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary" Href="@($"/customers/{c.Id}")">
+                                @L.T("Common.View")
+                            </MudButton>
+                        </div>
+                    </MudPaper>
+                }
+            </MudStack>
+        </div>
+
+        <div class="d-flex justify-center mt-4">
+            <MudPagination Count="@Math.Max(1, _result.TotalPages)" Selected="_page" SelectedChanged="OnPageChanged" Color="Color.Primary" />
+        </div>
+    }
+}
+
+<MudDialog @bind-Visible="_showCreateDialog" Options="new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true }">
+    <TitleContent><MudText Typo="Typo.h6">@L.T("Customers.New")</MudText></TitleContent>
+    <DialogContent>
+        <MudStack Spacing="2">
+            <MudSelect T="CustomerType" @bind-Value="_newType" Label="Type" Variant="Variant.Outlined" Margin="Margin.Dense">
+                <MudSelectItem Value="CustomerType.Individual">Particulier</MudSelectItem>
+                <MudSelectItem Value="CustomerType.Corporate">Entreprise / B2B</MudSelectItem>
+            </MudSelect>
+            <MudTextField @bind-Value="_newName" Label="@L.T("Customers.FullName")" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true" OnBlur="CheckDuplicatesAsync" />
+            <MudTextField @bind-Value="_newPhone" Label="@L.T("Customers.Phone")" Placeholder="+2376..." Variant="Variant.Outlined" Margin="Margin.Dense" Required="true" OnBlur="CheckDuplicatesAsync" />
+            <MudTextField @bind-Value="_newWhatsApp" Label="@L.T("Customers.WhatsApp")" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            <MudTextField @bind-Value="_newEmail" Label="@L.T("Customers.Email")" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            <MudTextField @bind-Value="_newAddress" Label="@L.T("Customers.Address")" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            <MudSelect T="PreferredLanguage" @bind-Value="_newLang" Label="Langue préférée" Variant="Variant.Outlined" Margin="Margin.Dense">
+                <MudSelectItem Value="PreferredLanguage.Fr">Français</MudSelectItem>
+                <MudSelectItem Value="PreferredLanguage.En">English</MudSelectItem>
+            </MudSelect>
+
+            @if (_duplicates.Count > 0)
+            {
+                <MudAlert Severity="Severity.Warning" Dense="true">
+                    <MudText Typo="Typo.subtitle2">@L.T("Customers.DuplicateWarning")</MudText>
+                    @foreach (var d in _duplicates)
+                    {
+                        <div>@d.CustomerCode · @d.FullName (@d.Phone)</div>
+                    }
+                    <MudCheckBox @bind-Value="_ignoreDupWarning" Label="Créer malgré l'alerte de doublon" Dense="true" />
+                </MudAlert>
+            }
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showCreateDialog = false)">@L.T("Common.Cancel")</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CreateCustomerAsync">@L.T("Common.Save")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+<MudDialog @bind-Visible="_showMergeDialog" Options="new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true }">
+    <TitleContent><MudText Typo="Typo.h6">@L.T("Customers.MergeDuplicates")</MudText></TitleContent>
+    <DialogContent>
+        <MudStack Spacing="2">
+            <MudSelect T="Guid" @bind-Value="_mergePrimaryId" Label="Client principal à conserver" Variant="Variant.Outlined" Margin="Margin.Dense">
+                @foreach (var c in _allLoaded)
+                {
+                    <MudSelectItem Value="c.Id">@c.CustomerCode - @c.FullName (@c.Phone)</MudSelectItem>
+                }
+            </MudSelect>
+            <MudSelect T="Guid" @bind-Value="_mergeDuplicateId" Label="Doublon à fusionner & archiver" Variant="Variant.Outlined" Margin="Margin.Dense">
+                @foreach (var c in _allLoaded)
+                {
+                    <MudSelectItem Value="c.Id">@c.CustomerCode - @c.FullName (@c.Phone)</MudSelectItem>
+                }
+            </MudSelect>
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showMergeDialog = false)">@L.T("Common.Cancel")</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Warning" OnClick="MergeAsync">@L.T("Common.Confirm")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+<MudDialog @bind-Visible="_showImportDialog" Options="new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true }">
+    <TitleContent><MudText Typo="Typo.h6">Import Clients (CSV / Excel)</MudText></TitleContent>
+    <DialogContent>
+        <MudStack Spacing="3">
+            <div class="d-flex flex-wrap gap-2">
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="@(() => DownloadFileAsync("/api/customers/import/template/csv", "modele-clients.csv", "text/csv"))">
+                    Modèle CSV
+                </MudButton>
+                <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="@(() => DownloadFileAsync("/api/customers/import/template/excel", "modele-clients.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))">
+                    Modèle Excel
+                </MudButton>
+            </div>
+            <MudFileUpload T="IBrowserFile" FilesChanged="ImportFileAsync" Accept=".csv,.xlsx">
+                <CustomContent Context="fileUpload">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.CloudUpload" OnClick="@fileUpload.OpenFilePickerAsync">
+                        Choisir un fichier (.csv ou .xlsx)
+                    </MudButton>
+                </CustomContent>
+            </MudFileUpload>
+            @if (_importResult is not null)
+            {
+                <MudAlert Severity="@(_importResult.SkippedCount == 0 ? Severity.Success : Severity.Warning)">
+                    Importés : @_importResult.ImportedCount / @_importResult.TotalRows · Erreurs : @_importResult.SkippedCount
+                </MudAlert>
+                @foreach (var err in _importResult.Errors.Take(10))
+                {
+                    <MudText Typo="Typo.caption" Color="Color.Error">Ligne @err.RowNumber (@err.RawIdentifier) : @err.Message</MudText>
+                }
+            }
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showImportDialog = false)">@L.T("Common.Close")</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private PagedResult<CustomerSummaryDto>? _result;
+    private List<CustomerSummaryDto> _allLoaded = [];
+    private string? _search;
+    private CustomerType? _typeFilter;
+    private int _page = 1;
+    private bool _loading;
+
+    private bool _showCreateDialog;
+    private CustomerType _newType = CustomerType.Individual;
+    private string _newName = string.Empty;
+    private string _newPhone = string.Empty;
+    private string? _newWhatsApp;
+    private string? _newEmail;
+    private string? _newAddress;
+    private PreferredLanguage _newLang = PreferredLanguage.Fr;
+    private List<DuplicateMatchDto> _duplicates = [];
+    private bool _ignoreDupWarning;
+
+    private bool _showMergeDialog;
+    private Guid _mergePrimaryId;
+    private Guid _mergeDuplicateId;
+
+    private bool _showImportDialog;
+    private CustomerImportResultDto? _importResult;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Session.IsAuthenticated) await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        var res = await Api.GetCustomersAsync(new CustomerQueryParams(_search, _typeFilter, _page, 15));
+        _loading = false;
+        if (res.IsSuccess)
+        {
+            _result = res.Data;
+            _allLoaded = res.Data?.Items.ToList() ?? [];
+        }
+        else
+        {
+            Snackbar.Add(res.Error?.Message ?? "Erreur", Severity.Error);
+        }
+    }
+
+    private async Task OnSearchChanged(string value)
+    {
+        _search = value;
+        _page = 1;
+        await LoadAsync();
+    }
+
+    private async Task SetTypeFilter(CustomerType? type)
+    {
+        _typeFilter = type;
+        _page = 1;
+        await LoadAsync();
+    }
+
+    private async Task OnPageChanged(int page)
+    {
+        _page = page;
+        await LoadAsync();
+    }
+
+    private void OpenCreateDialog()
+    {
+        _newName = string.Empty;
+        _newPhone = string.Empty;
+        _newWhatsApp = null;
+        _newEmail = null;
+        _newAddress = null;
+        _duplicates = [];
+        _ignoreDupWarning = false;
+        _showCreateDialog = true;
+    }
+
+    private async Task CheckDuplicatesAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_newName) && string.IsNullOrWhiteSpace(_newPhone)) return;
+        var res = await Api.CheckCustomerDuplicatesAsync(_newName, _newPhone);
+        if (res.IsSuccess && res.Data is not null)
+            _duplicates = res.Data.ToList();
+    }
+
+    private async Task CreateCustomerAsync()
+    {
+        var res = await Api.CreateCustomerAsync(new CreateCustomerRequest(
+            _newType, _newName, _newPhone, _newWhatsApp, _newEmail, _newAddress, null, _newLang,
+            IgnoreDuplicateWarning: _ignoreDupWarning));
+        if (res.IsSuccess)
+        {
+            Snackbar.Add("Client créé avec succès !", Severity.Success);
+            _showCreateDialog = false;
+            await LoadAsync();
+        }
+        else
+        {
+            if (res.Error?.Code == "Customer.DuplicateDetected")
+                await CheckDuplicatesAsync();
+            Snackbar.Add(res.Error?.Message ?? "Erreur", Severity.Error);
+        }
+    }
+
+    private void OpenMergeDialog()
+    {
+        if (_allLoaded.Count >= 2)
+        {
+            _mergePrimaryId = _allLoaded[0].Id;
+            _mergeDuplicateId = _allLoaded[1].Id;
+        }
+        _showMergeDialog = true;
+    }
+
+    private async Task MergeAsync()
+    {
+        var res = await Api.MergeCustomersAsync(new MergeCustomersRequest(_mergePrimaryId, _mergeDuplicateId));
+        if (res.IsSuccess)
+        {
+            Snackbar.Add("Clients fusionnés avec succès.", Severity.Success);
+            _showMergeDialog = false;
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(res.Error?.Message ?? "Erreur fusion", Severity.Error);
+        }
+    }
+
+    private Task ExportExcelAsync()
+        => DownloadFileAsync("/api/customers/export/excel", $"nyangopress-clients-{DateTime.Now:yyyyMMdd}.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+
+    private async Task DownloadFileAsync(string url, string fileName, string contentType)
+    {
+        var bytes = await Api.DownloadBytesAsync(url);
+        if (bytes is not null)
+        {
+            await JS.InvokeVoidAsync("nyangoPress.downloadFile", fileName, contentType, Convert.ToBase64String(bytes));
+        }
+        else
+        {
+            Snackbar.Add("Téléchargement refusé ou indisponible.", Severity.Warning);
+        }
+    }
+
+    private async Task ImportFileAsync(IBrowserFile file)
+    {
+        await using var stream = file.OpenReadStream(10 * 1024 * 1024);
+        var res = await Api.ImportCustomersAsync(stream, file.Name);
+        if (res.IsSuccess)
+        {
+            _importResult = res.Data;
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(res.Error?.Message ?? "Erreur import", Severity.Error);
+        }
+    }
+}

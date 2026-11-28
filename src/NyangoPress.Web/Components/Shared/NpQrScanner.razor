@@ -1,0 +1,94 @@
+@using MudBlazor
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+@inject LanguageService L
+
+<MudPaper Elevation="1" Class="pa-3 rounded-xl" Style="border:1px solid var(--mud-palette-lines-default);">
+    <div class="d-flex flex-wrap gap-2 align-center">
+        <MudTextField @bind-Value="_code"
+                      Label="@L.T("Production.ScanQr")"
+                      Placeholder="NP-2026-0001-01-..."
+                      Variant="Variant.Outlined"
+                      Margin="Margin.Dense"
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.QrCodeScanner"
+                      Immediate="true"
+                      OnKeyDown="HandleKeyDown"
+                      Style="flex:1;min-width:220px;" />
+
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Check" OnClick="SubmitAsync">
+            @(L.IsFrench ? "Valider QR" : "Scan QR")
+        </MudButton>
+
+        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.PhotoCamera" OnClick="ToggleCameraAsync">
+            @(_cameraActive ? (L.IsFrench ? "Stop caméra" : "Stop cam") : (L.IsFrench ? "Caméra" : "Camera"))
+        </MudButton>
+    </div>
+
+    @if (_cameraActive)
+    {
+        <div class="mt-3">
+            <video id="@_videoId" autoplay playsinline style="width:100%;max-height:220px;border-radius:10px;background:#000;"></video>
+        </div>
+    }
+</MudPaper>
+
+@code {
+    [Parameter] public EventCallback<string> OnQrScanned { get; set; }
+
+    private string _code = string.Empty;
+    private bool _cameraActive;
+    private readonly string _videoId = $"qr-{Guid.NewGuid():N}";
+    private DotNetObjectReference<NpQrScanner>? _dotNetRef;
+
+    private async Task HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            await SubmitAsync();
+        }
+    }
+
+    private async Task SubmitAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_code)) return;
+        var scanned = _code.Trim();
+        _code = string.Empty;
+        await OnQrScanned.InvokeAsync(scanned);
+    }
+
+    private async Task ToggleCameraAsync()
+    {
+        if (_cameraActive)
+        {
+            await JS.InvokeVoidAsync("nyangoPress.qrScanner.stop");
+            _cameraActive = false;
+        }
+        else
+        {
+            _cameraActive = true;
+            _dotNetRef ??= DotNetObjectReference.Create(this);
+            StateHasChanged();
+            await Task.Delay(60);
+            await JS.InvokeAsync<bool>("nyangoPress.qrScanner.start", _videoId, _dotNetRef);
+        }
+    }
+
+    [JSInvokable]
+    public async Task OnQrDetectedFromJs(string code)
+    {
+        if (string.IsNullOrWhiteSpace(code)) return;
+        await OnQrScanned.InvokeAsync(code.Trim());
+        await ToggleCameraAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_cameraActive)
+        {
+            try { await JS.InvokeVoidAsync("nyangoPress.qrScanner.stop"); } catch { }
+        }
+        _dotNetRef?.Dispose();
+    }
+}

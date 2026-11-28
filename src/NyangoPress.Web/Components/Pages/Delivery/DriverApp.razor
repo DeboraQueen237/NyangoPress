@@ -1,0 +1,159 @@
+@page "/driver"
+@inject ApiClient Api
+@inject AuthSessionService Session
+@inject LanguageService L
+@inject IJSRuntime JS
+@inject ISnackbar Snackbar
+
+<PageTitle>NyangoPress — @L.T("Driver.Title")</PageTitle>
+
+<NpPageHeader Title="@L.T("Driver.Title")" Subtitle="@L.T("Driver.Subtitle")" Icon="@Icons.Material.Filled.TwoWheeler">
+    <Actions>
+        <MudButton Variant="Variant.Filled" Color="Color.Info" StartIcon="@Icons.Material.Filled.MyLocation" OnClick="BroadcastGpsAsync">
+            @(L.IsFrench ? "Envoyer position GPS" : "Broadcast GPS")
+        </MudButton>
+    </Actions>
+</NpPageHeader>
+
+@if (!Session.IsAuthenticated)
+{
+    <MudAlert Severity="Severity.Warning" Variant="Variant.Filled">
+        Connectez-vous en tant que Livreur (<a href="/login" style="color:#fff;text-decoration:underline;">Connexion rapide</a>) pour accéder aux missions.
+    </MudAlert>
+}
+else
+{
+    @if (_lastGps is not null)
+    {
+        <MudAlert Severity="Severity.Success" Dense="true" Class="mb-3">
+            Position diffusée en direct : @_lastGps.Latitude.ToString("F4"), @_lastGps.Longitude.ToString("F4") (@_lastGps.RecordedAt.ToLocalTime().ToString("HH:mm:ss"))
+        </MudAlert>
+    }
+
+    <MudStack Spacing="3">
+        @foreach (var m in _missions)
+        {
+            <MudPaper Elevation="2" Class="pa-4 rounded-xl" Style="border:1px solid var(--mud-palette-lines-default);">
+                <div class="d-flex justify-space-between align-start mb-2">
+                    <div>
+                        <MudText Typo="Typo.h6" Style="font-weight:700;">@m.TicketNumber · @m.CustomerName</MudText>
+                        <MudText Typo="Typo.body2" Color="Color.Secondary">@m.ZoneName — @m.Address</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Primary">Tél : @m.CustomerPhone · Créneau : @(m.TimeSlot ?? "Standard")</MudText>
+                    </div>
+                    <NpStatusBadge Status="m.Status" />
+                </div>
+
+                @if (m.Status != DeliveryStatus.Delivered && m.Status != DeliveryStatus.Cancelled)
+                {
+                    <div class="d-flex flex-wrap gap-2 mt-3">
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Medium" StartIcon="@Icons.Material.Filled.PlayArrow"
+                                   OnClick="@(() => UpdateStatusAsync(m.Id, DeliveryStatus.EnRoute))">
+                            Démarrer
+                        </MudButton>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Warning" Size="Size.Medium" StartIcon="@Icons.Material.Filled.NearMe"
+                                   OnClick="@(() => UpdateStatusAsync(m.Id, DeliveryStatus.NearDestination))">
+                            À proximité
+                        </MudButton>
+                        <MudButton Variant="Variant.Outlined" Color="Color.Info" Size="Size.Medium" StartIcon="@Icons.Material.Filled.PinDrop"
+                                   OnClick="@(() => UpdateStatusAsync(m.Id, DeliveryStatus.Arrived))">
+                            Arrivé
+                        </MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Success" Size="Size.Medium" StartIcon="@Icons.Material.Filled.Verified"
+                                   OnClick="@(() => OpenDeliverDialog(m))">
+                            Remettre (OTP / Preuve)
+                        </MudButton>
+                    </div>
+                }
+            </MudPaper>
+        }
+    </MudStack>
+}
+
+<MudDialog @bind-Visible="_showDeliverDialog" Options="new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true }">
+    <TitleContent><MudText Typo="Typo.h6">Valider la livraison</MudText></TitleContent>
+    <DialogContent>
+        <MudStack Spacing="3">
+            <MudTextField @bind-Value="_otpCode" Label="Code client à 4 chiffres (RG-09)" Placeholder="ex: 4829"
+                          Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="4" />
+            <NpPhotoCapture @bind-Photos="_proofPhotos" />
+            <NpSignaturePad @ref="_proofSigPad" Label="Signature du destinataire (optionnel si code ou photo)" />
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showDeliverDialog = false)">Annuler</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="CompleteDeliveryAsync">Confirmer la remise</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private sealed record GeoPos(double Latitude, double Longitude, double? Accuracy);
+
+    private List<DeliveryOrderDto> _missions = [];
+    private DriverLocationDto? _lastGps;
+
+    private bool _showDeliverDialog;
+    private Guid _deliverId;
+    private string? _otpCode;
+    private List<string> _proofPhotos = [];
+    private NpSignaturePad? _proofSigPad;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Session.IsAuthenticated) await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        var driverFilter = Session.Role == Roles.Driver ? Session.CurrentUser?.Id : null;
+        var res = await Api.GetDeliveriesAsync(null, driverFilter);
+        if (res.IsSuccess && res.Data is not null) _missions = res.Data.ToList();
+    }
+
+    private async Task UpdateStatusAsync(Guid id, DeliveryStatus status)
+    {
+        var res = await Api.UpdateDeliveryStatusAsync(id, new UpdateDeliveryStatusRequest(status));
+        if (res.IsSuccess)
+        {
+            Snackbar.Add($"Statut mis à jour : {status}", Severity.Success);
+            await BroadcastGpsAsync();
+            await LoadAsync();
+        }
+        else Snackbar.Add(res.Error?.Message ?? "Erreur", Severity.Error);
+    }
+
+    private async Task BroadcastGpsAsync()
+    {
+        var pos = await JS.InvokeAsync<GeoPos>("nyangoPress.geolocation.getCurrentPosition");
+        var activeMission = _missions.FirstOrDefault(m => m.Status is DeliveryStatus.EnRoute or DeliveryStatus.Arrived or DeliveryStatus.NearDestination);
+        var res = await Api.BroadcastLocationAsync(new BroadcastLocationRequest(activeMission?.Id, pos.Latitude, pos.Longitude, pos.Accuracy));
+        if (res.IsSuccess)
+        {
+            _lastGps = res.Data;
+            Snackbar.Add("Position GPS transmise en temps réel !", Severity.Info);
+        }
+    }
+
+    private void OpenDeliverDialog(DeliveryOrderDto m)
+    {
+        _deliverId = m.Id;
+        _otpCode = null;
+        _proofPhotos = [];
+        _showDeliverDialog = true;
+    }
+
+    private async Task CompleteDeliveryAsync()
+    {
+        var sig = _proofSigPad is not null ? await _proofSigPad.CaptureDataUrlAsync() : null;
+        var res = await Api.CompleteDeliveryAsync(_deliverId, new CompleteDeliveryRequest(_otpCode, _proofPhotos.FirstOrDefault(), sig));
+        if (res.IsSuccess)
+        {
+            Snackbar.Add("Livraison confirmée avec succès !", Severity.Success);
+            _showDeliverDialog = false;
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(res.Error?.Message ?? "Code OTP ou preuve invalide", Severity.Error);
+        }
+    }
+}

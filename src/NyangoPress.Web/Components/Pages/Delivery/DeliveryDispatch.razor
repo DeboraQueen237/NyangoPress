@@ -1,0 +1,264 @@
+@page "/delivery"
+@inject ApiClient Api
+@inject AuthSessionService Session
+@inject LanguageService L
+@inject ISnackbar Snackbar
+
+<PageTitle>NyangoPress — @L.T("Delivery.Title")</PageTitle>
+
+<NpPageHeader Title="@L.T("Delivery.Title")" Subtitle="@L.T("Delivery.Subtitle")" Icon="@Icons.Material.Filled.Route">
+    <Actions>
+        <MudButton Variant="Variant.Outlined" Href="/driver" StartIcon="@Icons.Material.Filled.TwoWheeler">Vue Livreur</MudButton>
+        <MudButton Variant="Variant.Outlined" OnClick="LoadAsync" StartIcon="@Icons.Material.Filled.Refresh">@L.T("Common.Refresh")</MudButton>
+    </Actions>
+</NpPageHeader>
+
+@if (!Session.IsAuthenticated)
+{
+    <MudAlert Severity="Severity.Warning" Variant="Variant.Filled">Connectez-vous pour gérer la logistique de livraison.</MudAlert>
+}
+else
+{
+    <MudTabs Rounded="true" ApplyEffectsToContainer="true" TabPanelsClass="pa-4">
+        <MudTabPanel Text="@($"Missions ({_deliveries.Count})")" Icon="@Icons.Material.Filled.LocalShipping">
+            <MudTable Items="_deliveries" Dense="true" Hover="true">
+                <HeaderContent>
+                    <MudTh>Ticket</MudTh>
+                    <MudTh>Client</MudTh>
+                    <MudTh>Zone & Adresse</MudTh>
+                    <MudTh>Livreur</MudTh>
+                    <MudTh>Statut</MudTh>
+                    <MudTh>Code OTP</MudTh>
+                    <MudTh>Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd><b>@context.TicketNumber</b></MudTd>
+                    <MudTd>@context.CustomerName<br /><small>@context.CustomerPhone</small></MudTd>
+                    <MudTd>@context.ZoneName<br /><small>@context.Address</small></MudTd>
+                    <MudTd>@(context.DriverName ?? "Non affecté")</MudTd>
+                    <MudTd><NpStatusBadge Status="context.Status" /></MudTd>
+                    <MudTd><MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@context.OtpCodeForStaffPreview</MudChip></MudTd>
+                    <MudTd>
+                        <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary" OnClick="@(() => OpenAssign(context))">Affecter</MudButton>
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        </MudTabPanel>
+
+        <MudTabPanel Text="@($"Tournées ({_tours.Count})")" Icon="@Icons.Material.Filled.AltRoute">
+            <div class="mb-3">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="CreateDemoTourAsync">
+                    Créer tournée avec missions en attente
+                </MudButton>
+            </div>
+            <MudStack Spacing="3">
+                @foreach (var tour in _tours)
+                {
+                    <NpCard Title="@($"{tour.TourCode} · {tour.DriverName} ({tour.TourDate})")" Icon="@Icons.Material.Filled.DirectionsBike">
+                        <HeaderActions>
+                            @if (!tour.IsStarted)
+                            {
+                                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success" OnClick="@(() => StartTourAsync(tour.Id))">Démarrer tournée</MudButton>
+                            }
+                            else
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Success">En cours</MudChip>
+                            }
+                        </HeaderActions>
+                        <ChildContent>
+                            @foreach (var stop in tour.Stops)
+                            {
+                                <div class="d-flex justify-space-between align-center py-2" style="border-bottom:1px solid var(--mud-palette-lines-default);">
+                                    <div>
+                                        <b>Arrêt #@stop.StopSequence · @stop.TicketNumber</b> — @stop.CustomerName (@stop.Address)
+                                    </div>
+                                    <NpStatusBadge Status="stop.Status" />
+                                </div>
+                            }
+                        </ChildContent>
+                    </NpCard>
+                }
+            </MudStack>
+        </MudTabPanel>
+
+        <MudTabPanel Text="@($"Zones & Tarifs ({_zones.Count})")" Icon="@Icons.Material.Filled.Map">
+            @if (Session.HasAnyRole(Roles.Admin, Roles.Manager))
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Class="mb-3" OnClick="@(() => _showZoneDialog = true)">Nouvelle zone</MudButton>
+            }
+            <MudGrid Spacing="2">
+                @foreach (var z in _zones)
+                {
+                    <MudItem xs="12" sm="6" md="4">
+                        <NpCard Title="@z.Name" Icon="@Icons.Material.Filled.LocationOn">
+                            <MudText Typo="Typo.h6" Color="Color.Primary">@z.FeeFcfa.ToString("N0") FCFA</MudText>
+                            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-1">@z.Districts</MudText>
+                            <MudText Typo="Typo.caption" Class="d-block mt-2">Créneaux : @z.TimeSlots · Délai min : @z.MinimumDelayHours h</MudText>
+                        </NpCard>
+                    </MudItem>
+                }
+            </MudGrid>
+        </MudTabPanel>
+
+        <MudTabPanel Text="@($"Collectes en ligne ({_pickupRequests.Count})")" Icon="@Icons.Material.Filled.MoveToInbox">
+            <MudTable Items="_pickupRequests" Dense="true" Hover="true">
+                <HeaderContent>
+                    <MudTh>Référence</MudTh>
+                    <MudTh>Client</MudTh>
+                    <MudTh>Zone & Adresse</MudTh>
+                    <MudTh>Créneau</MudTh>
+                    <MudTh>Articles est.</MudTh>
+                    <MudTh>Statut</MudTh>
+                    <MudTh>Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd><b>@context.ReferenceCode</b></MudTd>
+                    <MudTd>@context.CustomerName<br /><small>@context.CustomerPhone</small></MudTd>
+                    <MudTd>@context.ZoneName · @context.Address</MudTd>
+                    <MudTd>@context.PreferredTimeSlot</MudTd>
+                    <MudTd>@context.EstimatedItemsCount</MudTd>
+                    <MudTd>@context.Status</MudTd>
+                    <MudTd>
+                        @if (context.Status == PickupRequestStatus.Pending)
+                        {
+                            <MudButton Size="Size.Small" Color="Color.Success" OnClick="@(() => ReviewPickupAsync(context.Id, true))">Approuver</MudButton>
+                            <MudButton Size="Size.Small" Color="Color.Error" OnClick="@(() => ReviewPickupAsync(context.Id, false))">Refuser</MudButton>
+                        }
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        </MudTabPanel>
+    </MudTabs>
+}
+
+<MudDialog @bind-Visible="_showAssignDialog" Options="new DialogOptions { MaxWidth = MaxWidth.ExtraSmall, FullWidth = true }">
+    <TitleContent><MudText Typo="Typo.h6">Affecter un livreur</MudText></TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_driverName" Label="Nom du livreur" Variant="Variant.Outlined" Margin="Margin.Dense" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showAssignDialog = false)">Annuler</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ConfirmAssignAsync">Affecter</MudButton>
+    </DialogActions>
+</MudDialog>
+
+<MudDialog @bind-Visible="_showZoneDialog" Options="new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true }">
+    <TitleContent><MudText Typo="Typo.h6">Nouvelle zone de livraison</MudText></TitleContent>
+    <DialogContent>
+        <MudStack Spacing="2">
+            <MudTextField @bind-Value="_zName" Label="Nom de zone" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            <MudTextField @bind-Value="_zDistricts" Label="Quartiers couverts" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            <MudNumericField T="decimal" @bind-Value="_zFee" Label="Tarif (FCFA)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            <MudTextField @bind-Value="_zSlots" Label="Créneaux horaires" Variant="Variant.Outlined" Margin="Margin.Dense" />
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showZoneDialog = false)">Annuler</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveZoneAsync">Enregistrer</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    private List<DeliveryOrderDto> _deliveries = [];
+    private List<DeliveryTourDto> _tours = [];
+    private List<DeliveryZoneDto> _zones = [];
+    private List<PickupRequestDto> _pickupRequests = [];
+
+    private bool _showAssignDialog;
+    private Guid _assignDeliveryId;
+    private string _driverName = "Junior Tchinda";
+    private readonly Guid _defaultDriverId = Guid.Parse("55555555-5555-5555-5555-555555555555");
+
+    private bool _showZoneDialog;
+    private string _zName = string.Empty;
+    private string _zDistricts = string.Empty;
+    private decimal _zFee = 1500m;
+    private string _zSlots = "09:00-12:00, 14:00-18:00";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Session.IsAuthenticated) await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        var d = await Api.GetDeliveriesAsync();
+        if (d.IsSuccess && d.Data is not null) _deliveries = d.Data.ToList();
+        var t = await Api.GetDeliveryToursAsync();
+        if (t.IsSuccess && t.Data is not null) _tours = t.Data.ToList();
+        var z = await Api.GetDeliveryZonesAsync();
+        if (z.IsSuccess && z.Data is not null) _zones = z.Data.ToList();
+        if (Session.HasAnyRole(Roles.Admin, Roles.Manager, Roles.Cashier))
+        {
+            var pr = await Api.GetPickupRequestsAsync();
+            if (pr.IsSuccess && pr.Data is not null) _pickupRequests = pr.Data.ToList();
+        }
+    }
+
+    private void OpenAssign(DeliveryOrderDto d)
+    {
+        _assignDeliveryId = d.Id;
+        _showAssignDialog = true;
+    }
+
+    private async Task ConfirmAssignAsync()
+    {
+        var res = await Api.AssignDeliveryAsync(_assignDeliveryId, new AssignDeliveryRequest(_defaultDriverId, _driverName));
+        if (res.IsSuccess)
+        {
+            Snackbar.Add("Livreur affecté.", Severity.Success);
+            _showAssignDialog = false;
+            await LoadAsync();
+        }
+        else Snackbar.Add(res.Error?.Message ?? "Erreur", Severity.Error);
+    }
+
+    private async Task CreateDemoTourAsync()
+    {
+        var pendingIds = _deliveries.Where(d => d.TourId is null && d.Status != DeliveryStatus.Delivered).Select(d => d.Id).ToList();
+        if (pendingIds.Count == 0)
+        {
+            Snackbar.Add("Aucune mission libre à regrouper.", Severity.Info);
+            return;
+        }
+        var res = await Api.CreateTourAsync(new CreateTourRequest(_defaultDriverId, _driverName, DateOnly.FromDateTime(DateTime.Today), pendingIds));
+        if (res.IsSuccess)
+        {
+            Snackbar.Add("Tournée créée !", Severity.Success);
+            await LoadAsync();
+        }
+        else Snackbar.Add(res.Error?.Message ?? "Erreur", Severity.Error);
+    }
+
+    private async Task StartTourAsync(Guid id)
+    {
+        var res = await Api.StartTourAsync(id);
+        if (res.IsSuccess)
+        {
+            Snackbar.Add("Tournée démarrée !", Severity.Success);
+            await LoadAsync();
+        }
+    }
+
+    private async Task SaveZoneAsync()
+    {
+        var res = await Api.CreateDeliveryZoneAsync(new UpsertDeliveryZoneRequest(_zName, _zDistricts, _zFee, _zSlots, 4, true));
+        if (res.IsSuccess)
+        {
+            Snackbar.Add("Zone créée.", Severity.Success);
+            _showZoneDialog = false;
+            await LoadAsync();
+        }
+        else Snackbar.Add(res.Error?.Message ?? "Erreur", Severity.Error);
+    }
+
+    private async Task ReviewPickupAsync(Guid id, bool approve)
+    {
+        var res = await Api.ReviewPickupRequestAsync(id, new ReviewPickupRequest(approve, approve ? "Collecte validée" : "Hors créneau"));
+        if (res.IsSuccess)
+        {
+            Snackbar.Add(approve ? "Demande approuvée." : "Demande refusée.", Severity.Info);
+            await LoadAsync();
+        }
+    }
+}

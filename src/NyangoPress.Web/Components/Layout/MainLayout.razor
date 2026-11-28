@@ -1,23 +1,116 @@
-﻿@inherits LayoutComponentBase
+@inherits LayoutComponentBase
+@implements IDisposable
+@inject AuthSessionService Session
+@inject LanguageService L
+@inject NavigationManager Nav
 
-<div class="page">
-    <div class="sidebar">
-        <NavMenu />
-    </div>
+<MudThemeProvider Theme="@NyangoPressTheme.Theme" IsDarkMode="@Session.IsDarkMode" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
 
-    <main>
-        <div class="top-row px-4">
-            <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+<MudLayout>
+    <MudAppBar Elevation="1" Dense="false" Class="np-no-print">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Primary" Edge="Edge.Start" OnClick="ToggleDrawer" />
+        <a href="/" class="d-flex align-center text-decoration-none ml-1">
+            <img src="/branding/logo-icon.svg" alt="NyangoPress" style="height:34px;width:34px;border-radius:8px;" />
+            <div class="ml-2 d-none d-sm-block">
+                <MudText Typo="Typo.h6" Style="line-height:1.1;font-weight:700;">
+                    <span style="color:#0B3C5D;">Nyango</span><span style="color:#19B5C6;">Press</span>
+                </MudText>
+                <MudText Typo="Typo.caption" Color="Color.Secondary" Style="font-size:10px;letter-spacing:1px;">
+                    @L.T("App.Tagline")
+                </MudText>
+            </div>
+        </a>
+
+        <MudSpacer />
+
+        <div class="d-flex align-center gap-2">
+            <NpLanguageSwitcher />
+            <MudIconButton Icon="@(Session.IsDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
+                           Color="Color.Primary"
+                           OnClick="@(() => Session.ToggleDarkMode())"
+                           aria-label="@L.T("Common.DarkMode")" />
+
+            @if (Session.IsAuthenticated)
+            {
+                <MudChip T="string" Color="Color.Primary" Variant="Variant.Outlined" Size="Size.Small" Icon="@Icons.Material.Filled.VerifiedUser" Class="d-none d-md-flex">
+                    @Session.CurrentUser!.DisplayName (@Session.Role)
+                </MudChip>
+                <MudIconButton Icon="@Icons.Material.Filled.Logout" Color="Color.Error" OnClick="Logout" aria-label="@L.T("Nav.Logout")" />
+            }
+            else
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" Href="/login" StartIcon="@Icons.Material.Filled.Login">
+                    @L.T("Nav.Login")
+                </MudButton>
+            }
         </div>
+    </MudAppBar>
 
-        <article class="content px-4">
+    <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Always" Elevation="2" Breakpoint="Breakpoint.Md">
+        <NavMenu />
+    </MudDrawer>
+
+    <MudMainContent Class="np-main-content">
+        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="py-4 px-3 px-sm-5">
             @Body
-        </article>
-    </main>
-</div>
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
 
-<div id="blazor-error-ui" data-nosnippet>
-    An unhandled error has occurred.
-    <a href="." class="reload">Reload</a>
-    <span class="dismiss">🗙</span>
-</div>
+<nav class="np-mobile-bottom-nav np-no-print">
+    <a href="/" class="@(IsActive("/") ? "active" : "")">
+        <MudIcon Icon="@Icons.Material.Filled.Home" Size="Size.Small" />
+        <span>@(L.IsFrench ? "Accueil" : "Home")</span>
+    </a>
+    <a href="/orders/new" class="@(IsActive("/orders/new") ? "active" : "")">
+        <MudIcon Icon="@Icons.Material.Filled.AddShoppingCart" Size="Size.Small" />
+        <span>@(L.IsFrench ? "Caisse" : "POS")</span>
+    </a>
+    <a href="/production" class="@(IsActive("/production") ? "active" : "")">
+        <MudIcon Icon="@Icons.Material.Filled.QrCodeScanner" Size="Size.Small" />
+        <span>@(L.IsFrench ? "Atelier" : "Kanban")</span>
+    </a>
+    <a href="/driver" class="@(IsActive("/driver") ? "active" : "")">
+        <MudIcon Icon="@Icons.Material.Filled.LocalShipping" Size="Size.Small" />
+        <span>@(L.IsFrench ? "Livreur" : "Driver")</span>
+    </a>
+    <a href="/suivi" class="@(IsActive("/suivi") ? "active" : "")">
+        <MudIcon Icon="@Icons.Material.Filled.TrackChanges" Size="Size.Small" />
+        <span>@(L.IsFrench ? "Suivi" : "Track")</span>
+    </a>
+</nav>
+
+@code {
+    private bool _drawerOpen = true;
+
+    protected override void OnInitialized()
+    {
+        Session.OnChange += HandleStateChanged;
+        L.OnChange += HandleStateChanged;
+    }
+
+    private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+
+    private void Logout()
+    {
+        Session.Logout();
+        Nav.NavigateTo("/login");
+    }
+
+    private bool IsActive(string path)
+    {
+        var rel = "/" + Nav.ToBaseRelativePath(Nav.Uri).Split('?')[0];
+        return path == "/" ? rel == "/" : rel.StartsWith(path, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void HandleStateChanged() => InvokeAsync(StateHasChanged);
+
+    public void Dispose()
+    {
+        Session.OnChange -= HandleStateChanged;
+        L.OnChange -= HandleStateChanged;
+    }
+}

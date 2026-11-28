@@ -1,0 +1,276 @@
+@page "/customers/{Id:guid}"
+@inject ApiClient Api
+@inject AuthSessionService Session
+@inject LanguageService L
+@inject ISnackbar Snackbar
+
+<PageTitle>NyangoPress — @L.T("Customers.History")</PageTitle>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (_history is null)
+{
+    <MudAlert Severity="Severity.Error">Client introuvable ou accès non autorisé.</MudAlert>
+}
+else
+{
+    var c = _history.Customer;
+    <NpPageHeader Title="@($"{c.CustomerCode} · {c.FullName}")" Subtitle="@($"{c.Phone} · {c.Address}")" Icon="@Icons.Material.Filled.Person">
+        <Actions>
+            <MudButton Variant="Variant.Outlined" Href="/customers" StartIcon="@Icons.Material.Filled.ArrowBack">Retour</MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="@($"/orders/new?customerId={c.Id}")" StartIcon="@Icons.Material.Filled.AddShoppingCart">
+                Nouvelle commande
+            </MudButton>
+        </Actions>
+    </NpPageHeader>
+
+    <MudGrid Spacing="3" Class="mb-4">
+        <MudItem xs="12" sm="4">
+            <NpKpiCard Label="Total payé" Value="@($"{_history.TotalSpentFcfa:N0} FCFA")" Icon="@Icons.Material.Filled.Payments" Color="Color.Success" />
+        </MudItem>
+        <MudItem xs="12" sm="4">
+            <NpKpiCard Label="@L.T("Customers.Balance")" Value="@($"{_history.TotalOutstandingFcfa:N0} FCFA")" Icon="@Icons.Material.Filled.AccountBalanceWallet" Color="Color.Error" />
+        </MudItem>
+        <MudItem xs="12" sm="4">
+            <NpKpiCard Label="Fidélité" Value="@($"{c.LoyaltyPoints} pts · {c.NyangoTokens} jetons")" Icon="@Icons.Material.Filled.Stars" Color="Color.Warning" />
+        </MudItem>
+    </MudGrid>
+
+    <MudTabs Rounded="true" ApplyEffectsToContainer="true" TabPanelsClass="pa-4">
+        <MudTabPanel Text="@L.T("Customers.History")" Icon="@Icons.Material.Filled.History">
+            <MudText Typo="Typo.h6" Class="mb-2">Commandes (@_history.Orders.Count)</MudText>
+            <MudTable Items="_history.Orders" Dense="true" Hover="true" Class="mb-5">
+                <HeaderContent>
+                    <MudTh>Ticket</MudTh>
+                    <MudTh>Date</MudTh>
+                    <MudTh>Articles</MudTh>
+                    <MudTh>Statut</MudTh>
+                    <MudTh>Total</MudTh>
+                    <MudTh>Solde</MudTh>
+                    <MudTh></MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd><b>@context.TicketNumber</b></MudTd>
+                    <MudTd>@context.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy")</MudTd>
+                    <MudTd>@context.ItemsCount</MudTd>
+                    <MudTd>@context.Status</MudTd>
+                    <MudTd>@context.TotalFcfa.ToString("N0") FCFA</MudTd>
+                    <MudTd>@context.BalanceFcfa.ToString("N0") FCFA</MudTd>
+                    <MudTd><MudButton Size="Size.Small" Href="@($"/orders/{context.OrderId}")">Voir</MudButton></MudTd>
+                </RowTemplate>
+            </MudTable>
+
+            @if (_history.Claims.Count > 0)
+            {
+                <MudText Typo="Typo.h6" Class="mb-2">Réclamations (@_history.Claims.Count)</MudText>
+                <MudTable Items="_history.Claims" Dense="true">
+                    <HeaderContent>
+                        <MudTh>Ticket</MudTh>
+                        <MudTh>Titre</MudTh>
+                        <MudTh>Statut</MudTh>
+                        <MudTh>Geste</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd>@context.TicketNumber</MudTd>
+                        <MudTd>@context.Title</MudTd>
+                        <MudTd>@context.Status</MudTd>
+                        <MudTd>@(context.GoodwillAmountFcfa?.ToString("N0") ?? "-") FCFA</MudTd>
+                    </RowTemplate>
+                </MudTable>
+            }
+        </MudTabPanel>
+
+        <MudTabPanel Text="@L.T("Common.Edit")" Icon="@Icons.Material.Filled.Edit">
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_editName" Label="@L.T("Customers.FullName")" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_editPhone" Label="@L.T("Customers.Phone")" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_editWhatsApp" Label="WhatsApp" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" sm="6">
+                    <MudTextField @bind-Value="_editEmail" Label="E-mail" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="_editAddress" Label="Adresse" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="_editNotes" Label="Notes" Lines="2" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveCustomerAsync">@L.T("Common.Save")</MudButton>
+                </MudItem>
+            </MudGrid>
+        </MudTabPanel>
+
+        <MudTabPanel Text="@L.T("Customers.Preferences")" Icon="@Icons.Material.Filled.NotificationsActive">
+            <MudStack Spacing="2" Style="max-width:480px;">
+                <MudSwitch @bind-Value="_prefWhatsApp" Label="WhatsApp autorisé" Color="Color.Success" />
+                <MudSwitch @bind-Value="_prefSms" Label="SMS autorisé" Color="Color.Success" />
+                <MudSwitch @bind-Value="_prefEmail" Label="E-mail autorisé" Color="Color.Success" />
+                <MudSwitch @bind-Value="_prefMarketing" Label="Consentement offres promotionnelles" Color="Color.Primary" />
+                <MudSwitch @bind-Value="_prefUnsubscribed" Label="Désinscription totale marketing" Color="Color.Error" />
+                <MudSelect T="PreferredLanguage" @bind-Value="_prefLang" Label="Langue des messages" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    <MudSelectItem Value="PreferredLanguage.Fr">Français</MudSelectItem>
+                    <MudSelectItem Value="PreferredLanguage.En">English</MudSelectItem>
+                </MudSelect>
+                <MudSelect T="ContactChannel" @bind-Value="_prefChannel" Label="Canal principal" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    <MudSelectItem Value="ContactChannel.WhatsApp">WhatsApp</MudSelectItem>
+                    <MudSelectItem Value="ContactChannel.Sms">SMS</MudSelectItem>
+                    <MudSelectItem Value="ContactChannel.Email">E-mail</MudSelectItem>
+                </MudSelect>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SavePreferencesAsync">@L.T("Common.Save")</MudButton>
+            </MudStack>
+        </MudTabPanel>
+
+        @if (Session.HasAnyRole(Roles.Admin, Roles.Manager))
+        {
+            <MudTabPanel Text="@L.T("Customers.Contract")" Icon="@Icons.Material.Filled.Business">
+                <MudGrid Spacing="2" Style="max-width:640px;">
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="_compName" Label="Raison sociale" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="_compTaxId" Label="NIU" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTextField @bind-Value="_compRccm" Label="RCCM" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudNumericField T="decimal" @bind-Value="_compDiscount" Label="Remise négociée (%)" Min="0" Max="60" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudNumericField T="decimal" @bind-Value="_compCredit" Label="Plafond de crédit (FCFA)" Min="0" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6" Class="d-flex align-center">
+                        <MudCheckBox @bind-Value="_compMonthly" Label="Facturation mensuelle groupée" />
+                    </MudItem>
+                    <MudItem xs="12">
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveContractAsync">Enregistrer contrat B2B</MudButton>
+                    </MudItem>
+                </MudGrid>
+            </MudTabPanel>
+        }
+    </MudTabs>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private CustomerHistoryDto? _history;
+    private bool _loading = true;
+
+    private string _editName = string.Empty;
+    private string _editPhone = string.Empty;
+    private string? _editWhatsApp;
+    private string? _editEmail;
+    private string? _editAddress;
+    private string? _editNotes;
+
+    private bool _prefWhatsApp;
+    private bool _prefSms;
+    private bool _prefEmail;
+    private bool _prefMarketing;
+    private bool _prefUnsubscribed;
+    private PreferredLanguage _prefLang;
+    private ContactChannel _prefChannel;
+
+    private string _compName = string.Empty;
+    private string? _compTaxId;
+    private string? _compRccm;
+    private decimal _compDiscount;
+    private decimal _compCredit;
+    private bool _compMonthly;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        var res = await Api.GetCustomerHistoryAsync(Id);
+        _loading = false;
+        if (!res.IsSuccess || res.Data is null) return;
+
+        _history = res.Data;
+        var c = _history.Customer;
+        _editName = c.FullName;
+        _editPhone = c.Phone;
+        _editWhatsApp = c.WhatsAppNumber;
+        _editEmail = c.Email;
+        _editAddress = c.Address;
+        _editNotes = c.Notes;
+
+        _prefWhatsApp = c.ContactPreference.AllowWhatsApp;
+        _prefSms = c.ContactPreference.AllowSms;
+        _prefEmail = c.ContactPreference.AllowEmail;
+        _prefMarketing = c.ContactPreference.MarketingConsent;
+        _prefUnsubscribed = c.ContactPreference.UnsubscribedAll;
+        _prefLang = c.ContactPreference.PreferredLanguage;
+        _prefChannel = c.ContactPreference.PrimaryChannel;
+
+        if (c.CompanyContract is not null)
+        {
+            _compName = c.CompanyContract.CompanyName;
+            _compTaxId = c.CompanyContract.TaxId;
+            _compRccm = c.CompanyContract.RegistrationNumber;
+            _compDiscount = c.CompanyContract.NegotiatedDiscountPercent;
+            _compCredit = c.CompanyContract.CreditLimitFcfa;
+            _compMonthly = c.CompanyContract.MonthlyGroupBilling;
+        }
+        else
+        {
+            _compName = c.FullName;
+        }
+    }
+
+    private async Task SaveCustomerAsync()
+    {
+        if (_history is null) return;
+        var res = await Api.UpdateCustomerAsync(Id, new UpdateCustomerRequest(
+            _history.Customer.CustomerType, _editName, _editPhone, _editWhatsApp, _editEmail, _editAddress, _editNotes, _history.Customer.RowVersion));
+        if (res.IsSuccess)
+        {
+            Snackbar.Add("Profil mis à jour.", Severity.Success);
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(res.Error?.Message ?? "Erreur", Severity.Error);
+        }
+    }
+
+    private async Task SavePreferencesAsync()
+    {
+        var res = await Api.UpdateCustomerPreferencesAsync(Id, new UpdateContactPreferenceRequest(
+            _prefWhatsApp, _prefSms, _prefEmail, _prefMarketing, _prefUnsubscribed, _prefLang, _prefChannel));
+        if (res.IsSuccess)
+        {
+            Snackbar.Add("Préférences enregistrées.", Severity.Success);
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(res.Error?.Message ?? "Erreur", Severity.Error);
+        }
+    }
+
+    private async Task SaveContractAsync()
+    {
+        var res = await Api.UpsertCompanyContractAsync(Id, new UpsertCompanyContractRequest(
+            _compName, _compTaxId, _compRccm, _compDiscount, _compMonthly, _compCredit, null, null, true, null, null));
+        if (res.IsSuccess)
+        {
+            Snackbar.Add("Contrat B2B enregistré.", Severity.Success);
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(res.Error?.Message ?? "Erreur", Severity.Error);
+        }
+    }
+}

@@ -1,0 +1,11 @@
+@using MudBlazor
+@inject LanguageService L
+
+<MudButtonGroup Variant="Variant.Outlined" Size="Size.Small" Color="Color.Inherit">
+    <MudButton OnClick="@(() => L.SetLanguage("fr"))"
+               Variant="@(L.IsFrench ? Variant.Filled : Variant.Outlined)"
+               Color="Color.Tertiary">FR</MudButton>
+    <MudButton OnClick="@(() => L.SetLanguage("en"))"
+               Variant="@(L.IsEnglish ? Variant.Filled : Variant.Outlined)"
+               Color="Color.Tertiary">EN</MudButton>
+</MudButtonGroup>

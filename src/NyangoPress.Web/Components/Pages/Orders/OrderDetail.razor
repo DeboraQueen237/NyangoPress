@@ -1,0 +1,338 @@
+@page "/orders/{Id:guid}"
+@inject ApiClient Api
+@inject AuthSessionService Session
+@inject LanguageService L
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+
+<PageTitle>NyangoPress — @(_order?.TicketNumber ?? "Commande")</PageTitle>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (_order is null)
+{
+    <MudAlert Severity="Severity.Error">Commande introuvable.</MudAlert>
+}
+else
+{
+    <NpPageHeader Title="@($"Ticket {_order.TicketNumber}")"
+                  Subtitle="@($"{_order.CustomerName} ({_order.CustomerPhone}) · Code suivi public : {_order.TrackingCode}")"
+                  Icon="@Icons.Material.Filled.Receipt">
+        <Actions>
+            <NpStatusBadge Status="_order.Status" />
+            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Print" OnClick="PrintAsync">
+                @L.T("Orders.PrintTicket")
+            </MudButton>
+            @if (_order.Items.Any(i => i.Status is ItemStatus.Ready or ItemStatus.Unclaimed))
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Filled.Verified"
+                           OnClick="OpenPickupDialog">
+                    @L.T("Orders.Pickup")
+                </MudButton>
+            }
+            @if (_order.Status is OrderStatus.Received)
+            {
+                <MudButton Variant="Variant.Outlined" Color="Color.Error" StartIcon="@Icons.Material.Filled.Cancel"
+                           OnClick="@(() => _showCancelDialog = true)">
+                    @L.T("Orders.CancelOrder")
+                </MudButton>
+            }
+        </Actions>
+    </NpPageHeader>
+
+    <MudGrid Spacing="3" Class="mb-4">
+        <MudItem xs="12" sm="4">
+            <NpKpiCard Label="Total TTC" Value="@($"{(_order.TotalFcfa + _order.StorageFeeFcfa):N0} FCFA")" Icon="@Icons.Material.Filled.ReceiptLong" Color="Color.Primary" Subtext="@($"Frais garde : {_order.StorageFeeFcfa:N0} FCFA")" />
+        </MudItem>
+        <MudItem xs="12" sm="4">
+            <NpKpiCard Label="Déjà payé" Value="@($"{_order.PaidFcfa:N0} FCFA")" Icon="@Icons.Material.Filled.Payments" Color="Color.Success" />
+        </MudItem>
+        <MudItem xs="12" sm="4">
+            <NpKpiCard Label="Solde restant" Value="@($"{_order.BalanceFcfa:N0} FCFA")" Icon="@Icons.Material.Filled.AccountBalanceWallet" Color="@(_order.BalanceFcfa > 0 ? Color.Error : Color.Success)" />
+        </MudItem>
+    </MudGrid>
+
+    <NpCard Title="Articles & Étiquettes QR" Icon="@Icons.Material.Filled.QrCode2" Class="mb-4 np-print-area">
+        <MudGrid Spacing="3">
+            @foreach (var item in _order.Items)
+            {
+                <MudItem xs="12" md="6">
+                    <MudPaper Elevation="0" Class="pa-3 rounded-xl" Style="border:1px solid var(--mud-palette-lines-default);">
+                        <div class="d-flex justify-space-between align-start gap-3">
+                            <div>
+                                <div class="d-flex align-center gap-2">
+                                    <MudText Typo="Typo.subtitle1" Style="font-weight:700;">@item.GarmentName</MudText>
+                                    <NpStatusBadge Status="item.Status" />
+                                </div>
+                                <MudText Typo="Typo.body2" Color="Color.Secondary">@item.ServiceName · <b>@item.FinalPriceFcfa.ToString("N0") FCFA</b></MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">
+                                    QR : <b>@item.QrCode</b>
+                                    @if (!string.IsNullOrWhiteSpace(item.StorageLocationCode))
+                                    {
+                                        <span> · Emplacement : <b>@item.StorageLocationCode</b></span>
+                                    }
+                                </MudText>
+                                @if (!string.IsNullOrWhiteSpace(item.DefectNotes) || item.PredefinedDefects.Count > 0)
+                                {
+                                    <MudText Typo="Typo.caption" Color="Color.Warning" Class="d-block mt-1">
+                                        Inspection : @string.Join(", ", item.PredefinedDefects) @item.DefectNotes
+                                    </MudText>
+                                }
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(item.QrSvg))
+                            {
+                                <div class="np-qr-box">@((MarkupString)item.QrSvg)</div>
+                            }
+                        </div>
+
+                        <MudDivider Class="my-2" />
+                        <MudText Typo="Typo.caption" Style="font-weight:600;">Traçabilité :</MudText>
+                        <div class="d-flex flex-wrap gap-1 mt-1">
+                            @foreach (var h in item.History)
+                            {
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">
+                                    @h.ToStatus (@h.ChangedAt.ToLocalTime().ToString("dd/MM HH:mm") · @h.ChangedBy)
+                                </MudChip>
+                            }
+                        </div>
+                    </MudPaper>
+                </MudItem>
+            }
+        </MudGrid>
+
+        @if (!string.IsNullOrWhiteSpace(_order.TermsSummary))
+        {
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-4 d-block">
+                CGV acceptées (@_order.TermsAcceptedAt?.ToLocalTime().ToString("dd/MM/yyyy HH:mm")) : @_order.TermsSummary
+            </MudText>
+        }
+    </NpCard>
+
+    <NpCard Title="@L.T("Orders.Claims")" Icon="@Icons.Material.Filled.ReportProblem">
+        <HeaderActions>
+            <MudButton Variant="Variant.Outlined" Color="Color.Warning" Size="Size.Small" OnClick="@(() => _showClaimDialog = true)">
+                Ouvrir une réclamation
+            </MudButton>
+        </HeaderActions>
+        <ChildContent>
+            @if (_order.Claims.Count == 0)
+            {
+                <MudText Typo="Typo.body2" Color="Color.Secondary">Aucune réclamation sur cette commande.</MudText>
+            }
+            else
+            {
+                @foreach (var cl in _order.Claims)
+                {
+                    <MudPaper Elevation="0" Class="pa-3 mb-2 rounded-lg" Style="border:1px solid var(--mud-palette-lines-default);">
+                        <div class="d-flex justify-space-between align-center">
+                            <b>@cl.Title</b>
+                            <NpStatusBadge Status="cl.Status" />
+                        </div>
+                        <MudText Typo="Typo.body2" Class="mt-1">@cl.Description</MudText>
+                        @if (cl.Status is ClaimStatus.Open or ClaimStatus.InReview && Session.HasAnyRole(Roles.Admin, Roles.Manager))
+                        {
+                            <MudButton Size="Size.Small" Color="Color.Success" Variant="Variant.Text" Class="mt-2"
+                                       OnClick="@(() => OpenResolveClaim(cl))">Résoudre (Manager)</MudButton>
+                        }
+                    </MudPaper>
+                }
+            }
+        </ChildContent>
+    </NpCard>
+}
+
+<MudDialog @bind-Visible="_showPickupDialog" Options="new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true }">
+    <TitleContent><MudText Typo="Typo.h6">@L.T("Orders.Pickup")</MudText></TitleContent>
+    <DialogContent>
+        @if (_order is not null)
+        {
+            <MudStack Spacing="3">
+                <MudAlert Severity="@(_order.BalanceFcfa > 0 ? Severity.Warning : Severity.Success)" Dense="true">
+                    Solde actuel : <b>@_order.BalanceFcfa.ToString("N0") FCFA</b>
+                </MudAlert>
+                <MudNumericField T="decimal" @bind-Value="_pickupPayment" Label="Montant encaissé au retrait (FCFA)" Min="0" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                @if (Session.HasAnyRole(Roles.Admin, Roles.Manager))
+                {
+                    <MudCheckBox @bind-Value="_overrideBalance" Label="Dérogation Manager (autoriser retrait avec solde impayé)" Color="Color.Warning" />
+                    @if (_overrideBalance)
+                    {
+                        <MudTextField @bind-Value="_overrideReason" Label="Motif obligatoire (tracé dans l'audit)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    }
+                }
+                <NpSignaturePad @ref="_signaturePad" Label="Signature numérique du client" />
+            </MudStack>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showPickupDialog = false)">@L.T("Common.Cancel")</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="ConfirmPickupAsync">Confirmer le retrait</MudButton>
+    </DialogActions>
+</MudDialog>
+
+<MudDialog @bind-Visible="_showCancelDialog" Options="new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true }">
+    <TitleContent><MudText Typo="Typo.h6">@L.T("Orders.CancelOrder")</MudText></TitleContent>
+    <DialogContent>
+        <MudTextField @bind-Value="_cancelReason" Label="Justification obligatoire (audit)" Lines="3" Variant="Variant.Outlined" />
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showCancelDialog = false)">@L.T("Common.Cancel")</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="ConfirmCancelAsync">Confirmer l'annulation</MudButton>
+    </DialogActions>
+</MudDialog>
+
+<MudDialog @bind-Visible="_showClaimDialog" Options="new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true }">
+    <TitleContent><MudText Typo="Typo.h6">Nouvelle réclamation</MudText></TitleContent>
+    <DialogContent>
+        <MudStack Spacing="2">
+            <MudTextField @bind-Value="_claimTitle" Label="Objet" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            <MudTextField @bind-Value="_claimDesc" Label="Description détaillée" Lines="3" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            <NpPhotoCapture @bind-Photos="_claimPhotos" />
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showClaimDialog = false)">@L.T("Common.Cancel")</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Warning" OnClick="SubmitClaimAsync">Enregistrer</MudButton>
+    </DialogActions>
+</MudDialog>
+
+<MudDialog @bind-Visible="_showResolveClaimDialog" Options="new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true }">
+    <TitleContent><MudText Typo="Typo.h6">Résoudre la réclamation</MudText></TitleContent>
+    <DialogContent>
+        <MudStack Spacing="2">
+            <MudSelect T="ClaimStatus" @bind-Value="_resolveStatus" Label="Décision" Variant="Variant.Outlined" Margin="Margin.Dense">
+                <MudSelectItem Value="ClaimStatus.Resolved">Résolue</MudSelectItem>
+                <MudSelectItem Value="ClaimStatus.Rejected">Rejetée</MudSelectItem>
+            </MudSelect>
+            <MudNumericField T="decimal?" @bind-Value="_resolveGoodwill" Label="Geste commercial (FCFA)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            <MudTextField @bind-Value="_resolveNotes" Label="Notes de résolution" Lines="3" Variant="Variant.Outlined" Margin="Margin.Dense" />
+        </MudStack>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="@(() => _showResolveClaimDialog = false)">@L.T("Common.Cancel")</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Success" OnClick="SubmitResolveClaimAsync">Valider</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private OrderDto? _order;
+    private bool _loading = true;
+
+    private bool _showPickupDialog;
+    private decimal _pickupPayment;
+    private bool _overrideBalance;
+    private string? _overrideReason;
+    private NpSignaturePad? _signaturePad;
+
+    private bool _showCancelDialog;
+    private string _cancelReason = string.Empty;
+
+    private bool _showClaimDialog;
+    private string _claimTitle = string.Empty;
+    private string _claimDesc = string.Empty;
+    private List<string> _claimPhotos = [];
+
+    private bool _showResolveClaimDialog;
+    private Guid _resolvingClaimId;
+    private ClaimStatus _resolveStatus = ClaimStatus.Resolved;
+    private decimal? _resolveGoodwill;
+    private string _resolveNotes = string.Empty;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        var res = await Api.GetOrderAsync(Id);
+        _loading = false;
+        if (res.IsSuccess) _order = res.Data;
+    }
+
+    private void OpenPickupDialog()
+    {
+        if (_order is null) return;
+        _pickupPayment = _order.BalanceFcfa;
+        _overrideBalance = false;
+        _overrideReason = null;
+        _showPickupDialog = true;
+    }
+
+    private async Task ConfirmPickupAsync()
+    {
+        if (_order is null) return;
+        var sig = _signaturePad is not null ? await _signaturePad.CaptureDataUrlAsync() : null;
+        var res = await Api.PickupOrderAsync(_order.Id, new PickupOrderRequest(
+            _pickupPayment, sig, _overrideBalance, _overrideReason, _order.RowVersion));
+
+        if (res.IsSuccess)
+        {
+            Snackbar.Add("Retrait validé avec succès !", Severity.Success);
+            _showPickupDialog = false;
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(res.Error?.Message ?? "Erreur retrait", Severity.Error);
+        }
+    }
+
+    private async Task ConfirmCancelAsync()
+    {
+        if (_order is null) return;
+        var res = await Api.CancelOrderAsync(_order.Id, new CancelOrderRequest(_cancelReason, _order.RowVersion));
+        if (res.IsSuccess)
+        {
+            Snackbar.Add("Commande annulée.", Severity.Info);
+            _showCancelDialog = false;
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(res.Error?.Message ?? "Erreur annulation", Severity.Error);
+        }
+    }
+
+    private async Task SubmitClaimAsync()
+    {
+        if (_order is null) return;
+        var res = await Api.OpenClaimAsync(_order.Id, new CreateClaimRequest(null, _claimTitle, _claimDesc, _claimPhotos.FirstOrDefault()));
+        if (res.IsSuccess)
+        {
+            Snackbar.Add("Réclamation enregistrée.", Severity.Success);
+            _showClaimDialog = false;
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(res.Error?.Message ?? "Erreur", Severity.Error);
+        }
+    }
+
+    private void OpenResolveClaim(ClaimDto cl)
+    {
+        _resolvingClaimId = cl.Id;
+        _resolveNotes = string.Empty;
+        _resolveGoodwill = null;
+        _showResolveClaimDialog = true;
+    }
+
+    private async Task SubmitResolveClaimAsync()
+    {
+        var res = await Api.ResolveClaimAsync(_resolvingClaimId, new ResolveClaimRequest(_resolveStatus, _resolveNotes, _resolveGoodwill));
+        if (res.IsSuccess)
+        {
+            Snackbar.Add("Réclamation clôturée.", Severity.Success);
+            _showResolveClaimDialog = false;
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(res.Error?.Message ?? "Erreur", Severity.Error);
+        }
+    }
+
+    private async Task PrintAsync() => await JS.InvokeVoidAsync("nyangoPress.printPage");
+}

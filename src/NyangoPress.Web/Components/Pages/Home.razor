@@ -1,7 +1,201 @@
-﻿@page "/"
+@page "/"
+@inject ApiClient Api
+@inject AuthSessionService Session
+@inject LanguageService L
+@inject NavigationManager Nav
+@inject ISnackbar Snackbar
 
-<PageTitle>Home</PageTitle>
+<PageTitle>NyangoPress — @L.T("Home.WelcomeTitle")</PageTitle>
 
-<h1>Hello, world!</h1>
+<MudPaper Elevation="2" Class="pa-5 pa-sm-7 mb-5 rounded-xl np-hero-gradient">
+    <div class="d-flex flex-wrap justify-space-between align-center gap-4">
+        <div style="max-width:680px;">
+            <MudChip T="string" Size="Size.Small" Style="background:rgba(244,185,66,0.22);color:#F4B942;font-weight:700;" Class="mb-2">
+                DEV 2 · CŒUR MÉTIER PRESSING
+            </MudChip>
+            <MudText Typo="Typo.h4" Style="color:#FFFFFF;font-weight:700;">@L.T("Home.WelcomeTitle")</MudText>
+            <MudText Typo="Typo.body1" Class="mt-2" Style="color:rgba(255,255,255,0.88);">
+                @L.T("Home.WelcomeSubtitle")
+            </MudText>
+            <div class="d-flex flex-wrap gap-2 mt-4">
+                <MudButton Variant="Variant.Filled" Color="Color.Tertiary" StartIcon="@Icons.Material.Filled.AddShoppingCart"
+                           Href="/orders/new" Style="color:#0B3C5D;font-weight:700;">
+                    @L.T("Nav.NewOrder")
+                </MudButton>
+                <MudButton Variant="Variant.Outlined" Style="color:#FFFFFF;border-color:rgba(255,255,255,0.5);"
+                           StartIcon="@Icons.Material.Filled.TrackChanges" Href="/suivi">
+                    @L.T("Nav.PublicPortal")
+                </MudButton>
+            </div>
+        </div>
+        <img src="/branding/logo-icon.svg" alt="NyangoPress" class="d-none d-md-block" style="height:108px;width:108px;border-radius:22px;box-shadow:0 12px 28px rgba(0,0,0,0.25);" />
+    </div>
+</MudPaper>
 
-Welcome to your new app.
+@if (!Session.IsAuthenticated)
+{
+    <NpCard Title="@L.T("Home.QuickRoles")" Icon="@Icons.Material.Filled.AdminPanelSettings" Class="mb-5">
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+            @(L.IsFrench
+                ? "Sélectionnez un rôle pour tester immédiatement toutes les interfaces et autorisations Dev 2 :"
+                : "Select a role to immediately test all Dev 2 interfaces and permissions:")
+        </MudText>
+        <div class="d-flex flex-wrap gap-2">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PointOfSale"
+                       OnClick="@(() => QuickLoginAsync(Roles.Cashier))">
+                Caissier (Debora · CAI)
+            </MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.PrecisionManufacturing"
+                       OnClick="@(() => QuickLoginAsync(Roles.Operator))">
+                Opérateur Atelier (OPE)
+            </MudButton>
+            <MudButton Variant="Variant.Filled" Color="Color.Info" StartIcon="@Icons.Material.Filled.TwoWheeler"
+                       OnClick="@(() => QuickLoginAsync(Roles.Driver))">
+                Livreur (LIV)
+            </MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Primary" StartIcon="@Icons.Material.Filled.ManageAccounts"
+                       OnClick="@(() => QuickLoginAsync(Roles.Manager))">
+                Manager (MGR)
+            </MudButton>
+            <MudButton Variant="Variant.Outlined" Color="Color.Warning" StartIcon="@Icons.Material.Filled.Security"
+                       OnClick="@(() => QuickLoginAsync(Roles.Admin))">
+                Admin (ADM)
+            </MudButton>
+        </div>
+    </NpCard>
+}
+else
+{
+    <MudGrid Spacing="3" Class="mb-5">
+        <MudItem xs="12" sm="6" md="3">
+            <NpKpiCard Label="@L.T("Home.ActiveOrders")" Value="@_ordersCount.ToString()" Icon="@Icons.Material.Filled.ReceiptLong" Color="Color.Primary" Subtext="M05 Commandes" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <NpKpiCard Label="@L.T("Home.ProductionQueue")" Value="@_productionCount.ToString()" Icon="@Icons.Material.Filled.ViewKanban" Color="Color.Secondary" Subtext="QR Kanban temps réel" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <NpKpiCard Label="@L.T("Home.PendingDeliveries")" Value="@_deliveriesCount.ToString()" Icon="@Icons.Material.Filled.LocalShipping" Color="Color.Info" Subtext="M09 Tournées & GPS" />
+        </MudItem>
+        <MudItem xs="12" sm="6" md="3">
+            <NpKpiCard Label="@L.T("Home.AuctionLots")" Value="@_auctionLotsCount.ToString()" Icon="@Icons.Material.Filled.Gavel" Color="Color.Warning" Subtext="INN-01 Enchères" />
+        </MudItem>
+    </MudGrid>
+}
+
+<MudGrid Spacing="3">
+    <MudItem xs="12" sm="6" md="4">
+        <NpCard Title="M03 · Clients & B2B" Icon="@Icons.Material.Filled.People" Class="np-card-hover">
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+                @(L.IsFrench ? "Recherche instantanée, préférences de canal, contrats pros, doublons et import/export CSV & Excel." : "Instant search, channel preferences, B2B contracts, duplicates and CSV/Excel import/export.")
+            </MudText>
+            <MudButton Variant="Variant.Text" Color="Color.Primary" Href="/customers" EndIcon="@Icons.Material.Filled.ArrowForward">
+                @L.T("Nav.Customers")
+            </MudButton>
+        </NpCard>
+    </MudItem>
+
+    <MudItem xs="12" sm="6" md="4">
+        <NpCard Title="M05 · Caisse & Commandes" Icon="@Icons.Material.Filled.PointOfSale" Class="np-card-hover">
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+                @(L.IsFrench ? "Assistant de dépôt 4 étapes, inspection photo, étiquettes QR, retrait signé et réclamations." : "4-step POS wizard, photo inspection, QR labels, signed pickup and claims.")
+            </MudText>
+            <MudButton Variant="Variant.Text" Color="Color.Primary" Href="/orders/new" EndIcon="@Icons.Material.Filled.ArrowForward">
+                @L.T("Nav.NewOrder")
+            </MudButton>
+        </NpCard>
+    </MudItem>
+
+    <MudItem xs="12" sm="6" md="4">
+        <NpCard Title="M05 · Production & Stockage" Icon="@Icons.Material.Filled.QrCodeScanner" Class="np-card-hover">
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+                @(L.IsFrench ? "Kanban SignalR temps réel, priorité Express, scan QR caméra/USB et racks allée-cintre." : "Real-time SignalR Kanban, Express priority, camera/USB QR scan and rack storage.")
+            </MudText>
+            <MudButton Variant="Variant.Text" Color="Color.Primary" Href="/production" EndIcon="@Icons.Material.Filled.ArrowForward">
+                @L.T("Nav.Production")
+            </MudButton>
+        </NpCard>
+    </MudItem>
+
+    <MudItem xs="12" sm="6" md="4">
+        <NpCard Title="M09 · Livraison & App Livreur" Icon="@Icons.Material.Filled.TwoWheeler" Class="np-card-hover">
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+                @(L.IsFrench ? "Zones tarifaires, tournées ordonnées, diffusion GPS SignalR et remise par code OTP 4 chiffres." : "Tariff zones, ordered tours, live GPS broadcast and 4-digit OTP handover.")
+            </MudText>
+            <MudButton Variant="Variant.Text" Color="Color.Primary" Href="/delivery" EndIcon="@Icons.Material.Filled.ArrowForward">
+                @L.T("Nav.Delivery")
+            </MudButton>
+        </NpCard>
+    </MudItem>
+
+    <MudItem xs="12" sm="6" md="4">
+        <NpCard Title="M14 · Portail Suivi Public" Icon="@Icons.Material.Filled.TrackChanges" Class="np-card-hover">
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+                @(L.IsFrench ? "Suivi client par N° ticket + code (sans fuite PII), carte Leaflet GPS et demande de collecte." : "Client tracking by ticket + secret code, live Leaflet GPS map and online pickup request.")
+            </MudText>
+            <MudButton Variant="Variant.Text" Color="Color.Primary" Href="/suivi" EndIcon="@Icons.Material.Filled.ArrowForward">
+                @L.T("Nav.PublicPortal")
+            </MudButton>
+        </NpCard>
+    </MudItem>
+
+    <MudItem xs="12" sm="6" md="4">
+        <NpCard Title="INN-01 · Enchères" Icon="@Icons.Material.Filled.Gavel" Class="np-card-hover">
+            <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mb-3">
+                @(L.IsFrench ? "Détection automatique >60j, frais de garde, création de lots, offres et adjudication." : "Automatic >60d detection, storage fees, lot creation, bidding and award.")
+            </MudText>
+            <MudButton Variant="Variant.Text" Color="Color.Primary" Href="/auctions" EndIcon="@Icons.Material.Filled.ArrowForward">
+                @L.T("Nav.Auctions")
+            </MudButton>
+        </NpCard>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private int _ordersCount;
+    private int _productionCount;
+    private int _deliveriesCount;
+    private int _auctionLotsCount;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Session.IsAuthenticated)
+        {
+            await LoadKpisAsync();
+        }
+    }
+
+    private async Task QuickLoginAsync(string role)
+    {
+        var res = await Api.DemoLoginAsync(role);
+        if (res.IsSuccess && res.Data is not null)
+        {
+            Snackbar.Add($"Connecté en tant que {res.Data.User.DisplayName} ({res.Data.User.Role})", Severity.Success);
+            await LoadKpisAsync();
+        }
+        else
+        {
+            Snackbar.Add(res.Error?.Message ?? "Erreur de connexion", Severity.Error);
+        }
+    }
+
+    private async Task LoadKpisAsync()
+    {
+        var orders = await Api.GetOrdersAsync(new OrderQueryParams(PageSize: 1));
+        if (orders.IsSuccess && orders.Data is not null) _ordersCount = orders.Data.TotalCount;
+
+        if (Session.HasAnyRole(Roles.Admin, Roles.Manager, Roles.Cashier, Roles.Operator))
+        {
+            var prod = await Api.GetProductionQueueAsync();
+            if (prod.IsSuccess && prod.Data is not null) _productionCount = prod.Data.Count;
+        }
+
+        var del = await Api.GetDeliveriesAsync();
+        if (del.IsSuccess && del.Data is not null) _deliveriesCount = del.Data.Count(d => d.Status != DeliveryStatus.Delivered && d.Status != DeliveryStatus.Cancelled);
+
+        if (Session.HasAnyRole(Roles.Admin, Roles.Manager))
+        {
+            var lots = await Api.GetAuctionLotsAsync();
+            if (lots.IsSuccess && lots.Data is not null) _auctionLotsCount = lots.Data.Count;
+        }
+    }
+}

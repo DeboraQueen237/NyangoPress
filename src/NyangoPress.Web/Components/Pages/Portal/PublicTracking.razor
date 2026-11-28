@@ -1,0 +1,225 @@
+@page "/suivi"
+@page "/suivi/{TicketParam}"
+@layout PublicLayout
+@implements IDisposable
+@inject ApiClient Api
+@inject SignalRService SignalR
+@inject LanguageService L
+@inject IJSRuntime JS
+@inject ISnackbar Snackbar
+
+<PageTitle>NyangoPress — @L.T("Portal.Title")</PageTitle>
+
+<MudPaper Elevation="2" Class="pa-5 mb-5 rounded-xl np-hero-gradient">
+    <MudText Typo="Typo.h4" Style="color:#FFFFFF;font-weight:700;">@L.T("Portal.Title")</MudText>
+    <MudText Typo="Typo.body1" Class="mt-1" Style="color:rgba(255,255,255,0.88);">@L.T("Portal.Subtitle")</MudText>
+</MudPaper>
+
+<MudTabs Rounded="true" ApplyEffectsToContainer="true" TabPanelsClass="pa-4">
+    <MudTabPanel Text="@L.T("Portal.TrackBtn")" Icon="@Icons.Material.Filled.TrackChanges">
+        <MudPaper Elevation="0" Class="pa-4 mb-4 rounded-xl" Style="border:1px solid var(--mud-palette-lines-default);">
+            <MudGrid Spacing="2" Class="align-center">
+                <MudItem xs="12" sm="5">
+                    <MudTextField @bind-Value="_ticketNumber" Label="N° de ticket (ex: NP-2026-0002)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudTextField @bind-Value="_trackingCode" Label="Code de suivi (ex: NYG202)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" sm="3">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" OnClick="TrackAsync" StartIcon="@Icons.Material.Filled.Search">
+                        @L.T("Portal.TrackBtn")
+                    </MudButton>
+                </MudItem>
+            </MudGrid>
+            <MudText Typo="Typo.caption" Color="Color.Secondary" Class="mt-2 d-block">
+                Démo rapide : Ticket <b>NP-2026-0002</b> · Code <b>NYG202</b> (livraison GPS en direct) ou <b>NP-2026-0001</b> · Code <b>NYG101</b>.
+            </MudText>
+        </MudPaper>
+
+        @if (_tracking is not null)
+        {
+            <NpCard Title="@($"Ticket {_tracking.TicketNumber} — {_tracking.CustomerMaskedName}")" Icon="@Icons.Material.Filled.LocalLaundryService">
+                <HeaderActions>
+                    <NpStatusBadge Status="_tracking.Status" />
+                </HeaderActions>
+                <ChildContent>
+                    <MudGrid Spacing="3" Class="mb-4">
+                        <MudItem xs="6" sm="3">
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Articles prêts</MudText>
+                            <MudText Typo="Typo.h6">@_tracking.ReadyItemsCount / @_tracking.ItemsCount</MudText>
+                        </MudItem>
+                        <MudItem xs="6" sm="3">
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Retrait estimé</MudText>
+                            <MudText Typo="Typo.h6">@_tracking.EstimatedReadyAt.ToLocalTime().ToString("dd/MM HH:mm")</MudText>
+                        </MudItem>
+                        <MudItem xs="6" sm="3">
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Montant total</MudText>
+                            <MudText Typo="Typo.h6">@_tracking.TotalFcfa.ToString("N0") FCFA</MudText>
+                        </MudItem>
+                        <MudItem xs="6" sm="3">
+                            <MudText Typo="Typo.caption" Color="Color.Secondary">Solde restant</MudText>
+                            <MudText Typo="Typo.h6" Color="@(_tracking.RemainingBalanceFcfa > 0 ? Color.Warning : Color.Success)">
+                                @_tracking.RemainingBalanceFcfa.ToString("N0") FCFA
+                            </MudText>
+                        </MudItem>
+                    </MudGrid>
+
+                    <MudText Typo="Typo.subtitle1" Style="font-weight:700;" Class="mb-2">Suivi par article</MudText>
+                    <MudStack Spacing="2" Class="mb-4">
+                        @foreach (var item in _tracking.Items)
+                        {
+                            <MudPaper Elevation="0" Class="pa-3 rounded-lg" Style="border:1px solid var(--mud-palette-lines-default);">
+                                <div class="d-flex justify-space-between align-center">
+                                    <b>@item.Label — @item.ServiceName</b>
+                                    <NpStatusBadge Status="item.Status" />
+                                </div>
+                                <div class="d-flex flex-wrap gap-1 mt-2">
+                                    @foreach (var step in item.Timeline)
+                                    {
+                                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">
+                                            @step.Status · @step.ChangedAt.ToLocalTime().ToString("dd/MM HH:mm")
+                                        </MudChip>
+                                    }
+                                </div>
+                            </MudPaper>
+                        }
+                    </MudStack>
+
+                    @if (_tracking.Delivery is not null)
+                    {
+                        <MudDivider Class="my-3" />
+                        <div class="d-flex justify-space-between align-center mb-2">
+                            <MudText Typo="Typo.subtitle1" Style="font-weight:700;">Suivi Livraison (@_tracking.Delivery.ZoneName)</MudText>
+                            <NpStatusBadge Status="_tracking.Delivery.Status" />
+                        </div>
+                        <div id="public-delivery-map" class="np-leaflet-map"></div>
+                    }
+                </ChildContent>
+            </NpCard>
+        }
+    </MudTabPanel>
+
+    <MudTabPanel Text="@L.T("Portal.RequestPickup")" Icon="@Icons.Material.Filled.AddHomeWork">
+        <MudPaper Elevation="0" Class="pa-4 rounded-xl" Style="max-width:620px;border:1px solid var(--mud-palette-lines-default);">
+            <MudStack Spacing="2">
+                <MudTextField @bind-Value="_puName" Label="Votre nom complet" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                <MudTextField @bind-Value="_puPhone" Label="Téléphone / WhatsApp" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                <MudTextField @bind-Value="_puEmail" Label="E-mail (optionnel)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                <MudSelect T="Guid" @bind-Value="_puZoneId" Label="Zone de collecte" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    @foreach (var z in _zones)
+                    {
+                        <MudSelectItem Value="z.Id">@z.Name (@z.FeeFcfa.ToString("N0") FCFA)</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudTextField @bind-Value="_puAddress" Label="Adresse précise / Repère" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                <MudTextField @bind-Value="_puSlot" Label="Créneau souhaité" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                <MudNumericField T="int" @bind-Value="_puCount" Label="Nombre estimé d'articles" Min="1" Max="200" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                <MudTextField @bind-Value="_puNotes" Label="Notes" Lines="2" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SubmitPickupAsync">Envoyer ma demande de collecte</MudButton>
+
+                @if (_pickupConfirmed is not null)
+                {
+                    <MudAlert Severity="Severity.Success">
+                        Demande enregistrée sous la référence <b>@_pickupConfirmed.ReferenceCode</b> ! Notre équipe va la valider sous peu.
+                    </MudAlert>
+                }
+            </MudStack>
+        </MudPaper>
+    </MudTabPanel>
+</MudTabs>
+
+@code {
+    [Parameter] public string? TicketParam { get; set; }
+
+    private string _ticketNumber = "NP-2026-0002";
+    private string _trackingCode = "NYG202";
+    private PublicOrderTrackingDto? _tracking;
+
+    private List<DeliveryZoneDto> _zones = [];
+    private string _puName = string.Empty;
+    private string _puPhone = string.Empty;
+    private string? _puEmail;
+    private Guid _puZoneId;
+    private string _puAddress = string.Empty;
+    private string _puSlot = "14:00-17:00";
+    private int _puCount = 5;
+    private string? _puNotes;
+    private PublicPickupRequestResultDto? _pickupConfirmed;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!string.IsNullOrWhiteSpace(TicketParam)) _ticketNumber = TicketParam;
+
+        var z = await Api.GetPublicZonesAsync();
+        if (z.IsSuccess && z.Data is not null)
+        {
+            _zones = z.Data.ToList();
+            _puZoneId = _zones.FirstOrDefault()?.Id ?? Guid.Empty;
+        }
+
+        SignalR.OnTrackingUpdated += HandleTrackingRefresh;
+        SignalR.OnDriverLocationUpdated += HandleGpsUpdate;
+    }
+
+    private async Task TrackAsync()
+    {
+        var res = await Api.TrackPublicOrderAsync(_ticketNumber, _trackingCode);
+        if (res.IsSuccess && res.Data is not null)
+        {
+            _tracking = res.Data;
+            await SignalR.ConnectTrackingHubAsync(_tracking.TicketNumber);
+            StateHasChanged();
+            await RenderMapAsync();
+        }
+        else
+        {
+            Snackbar.Add(res.Error?.Message ?? "Ticket introuvable", Severity.Error);
+        }
+    }
+
+    private async Task RenderMapAsync()
+    {
+        if (_tracking?.Delivery is null) return;
+        await Task.Delay(80);
+        await JS.InvokeVoidAsync("nyangoPress.map.render",
+            "public-delivery-map",
+            _tracking.Delivery.DriverLatitude,
+            _tracking.Delivery.DriverLongitude,
+            _tracking.Delivery.DestinationLatitude,
+            _tracking.Delivery.DestinationLongitude,
+            _tracking.Delivery.DriverFirstName ?? "Livreur NyangoPress");
+    }
+
+    private void HandleTrackingRefresh(string _) => InvokeAsync(TrackAsync);
+
+    private void HandleGpsUpdate(double lat, double lng, string driverName)
+    {
+        InvokeAsync(async () =>
+        {
+            if (_tracking?.Delivery is not null)
+            {
+                await JS.InvokeVoidAsync("nyangoPress.map.render",
+                    "public-delivery-map", lat, lng,
+                    _tracking.Delivery.DestinationLatitude, _tracking.Delivery.DestinationLongitude, driverName);
+            }
+        });
+    }
+
+    private async Task SubmitPickupAsync()
+    {
+        var res = await Api.SubmitPublicPickupRequestAsync(new CreatePickupRequest(
+            _puName, _puPhone, _puEmail, _puZoneId, _puAddress, _puSlot, _puCount, _puNotes));
+        if (res.IsSuccess)
+        {
+            _pickupConfirmed = res.Data;
+            Snackbar.Add("Demande envoyée !", Severity.Success);
+        }
+        else Snackbar.Add(res.Error?.Message ?? "Erreur", Severity.Error);
+    }
+
+    public void Dispose()
+    {
+        SignalR.OnTrackingUpdated -= HandleTrackingRefresh;
+        SignalR.OnDriverLocationUpdated -= HandleGpsUpdate;
+    }
+}

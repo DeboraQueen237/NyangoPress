@@ -1,0 +1,152 @@
+@page "/orders"
+@inject ApiClient Api
+@inject AuthSessionService Session
+@inject LanguageService L
+@inject ISnackbar Snackbar
+
+<PageTitle>NyangoPress — @L.T("Orders.Title")</PageTitle>
+
+<NpPageHeader Title="@L.T("Orders.Title")" Subtitle="@L.T("Orders.Subtitle")" Icon="@Icons.Material.Filled.ReceiptLong">
+    <Actions>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Href="/orders/new" StartIcon="@Icons.Material.Filled.AddShoppingCart">
+            @L.T("Orders.New")
+        </MudButton>
+    </Actions>
+</NpPageHeader>
+
+@if (!Session.IsAuthenticated)
+{
+    <MudAlert Severity="Severity.Warning" Variant="Variant.Filled">
+        Connectez-vous (<a href="/login" style="color:#fff;text-decoration:underline;">Connexion</a>) pour consulter les commandes.
+    </MudAlert>
+}
+else
+{
+    <MudPaper Elevation="1" Class="pa-4 mb-4 rounded-xl" Style="border:1px solid var(--mud-palette-lines-default);">
+        <div class="d-flex flex-wrap gap-3 align-center">
+            <MudTextField T="string" Value="_search" ValueChanged="OnSearchChanged" DebounceInterval="220" Immediate="true"
+                          Placeholder="Ticket, client, téléphone ou QR..." Variant="Variant.Outlined" Margin="Margin.Dense"
+                          Adornment="Adornment.Start" AdornmentIcon="@Icons.Material.Filled.Search" Style="flex:1;min-width:220px;" />
+
+            <MudSelect T="OrderStatus?" Value="_statusFilter" ValueChanged="OnStatusChanged" Label="Statut"
+                       Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" Style="min-width:170px;">
+                @foreach (var s in Enum.GetValues<OrderStatus>())
+                {
+                    <MudSelectItem T="OrderStatus?" Value="s">@s</MudSelectItem>
+                }
+            </MudSelect>
+
+            <MudCheckBox T="bool" Value="_expressOnly" ValueChanged="OnExpressChanged" Label="Express uniquement" Color="Color.Warning" />
+        </div>
+    </MudPaper>
+
+    @if (_loading)
+    {
+        <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+    }
+    else if (_result is null || _result.Items.Count == 0)
+    {
+        <NpCard><MudText Align="Align.Center" Class="py-6">@L.T("Common.Empty")</MudText></NpCard>
+    }
+    else
+    {
+        <div class="np-desktop-only">
+            <MudTable Items="_result.Items" Hover="true" Dense="true" Elevation="1" Class="rounded-xl">
+                <HeaderContent>
+                    <MudTh>Ticket</MudTh>
+                    <MudTh>Client</MudTh>
+                    <MudTh>Statut</MudTh>
+                    <MudTh>Articles</MudTh>
+                    <MudTh>Total</MudTh>
+                    <MudTh>Solde</MudTh>
+                    <MudTh>Retrait prévu</MudTh>
+                    <MudTh></MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>
+                        <div class="d-flex align-center gap-1">
+                            <b>@context.TicketNumber</b>
+                            @if (context.IsExpress)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Warning">EXPRESS</MudChip>
+                            }
+                        </div>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">Code suivi : @context.TrackingCode</MudText>
+                    </MudTd>
+                    <MudTd>
+                        <div>@context.CustomerName</div>
+                        <MudText Typo="Typo.caption" Color="Color.Secondary">@context.CustomerPhone</MudText>
+                    </MudTd>
+                    <MudTd><NpStatusBadge Status="context.Status" /></MudTd>
+                    <MudTd>@context.ReadyItemsCount / @context.ItemsCount prêts</MudTd>
+                    <MudTd>@context.TotalFcfa.ToString("N0") FCFA</MudTd>
+                    <MudTd>
+                        <MudText Color="@(context.BalanceFcfa > 0 ? Color.Error : Color.Success)" Style="font-weight:600;">
+                            @context.BalanceFcfa.ToString("N0") FCFA
+                        </MudText>
+                    </MudTd>
+                    <MudTd>@context.PromisedAt.ToLocalTime().ToString("dd/MM HH:mm")</MudTd>
+                    <MudTd>
+                        <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary" Href="@($"/orders/{context.Id}")">Ouvrir</MudButton>
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        </div>
+
+        <div class="np-mobile-only">
+            <MudStack Spacing="2">
+                @foreach (var o in _result.Items)
+                {
+                    <MudPaper Elevation="1" Class="pa-3 rounded-xl" Style="border:1px solid var(--mud-palette-lines-default);">
+                        <div class="d-flex justify-space-between align-center">
+                            <div>
+                                <MudText Typo="Typo.subtitle1" Style="font-weight:700;">@o.TicketNumber</MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Secondary">@o.CustomerName · @o.CustomerPhone</MudText>
+                            </div>
+                            <NpStatusBadge Status="o.Status" />
+                        </div>
+                        <div class="d-flex justify-space-between align-center mt-3">
+                            <div>
+                                <MudText Typo="Typo.body2"><b>@o.TotalFcfa.ToString("N0") FCFA</b></MudText>
+                                <MudText Typo="Typo.caption" Color="@(o.BalanceFcfa > 0 ? Color.Error : Color.Success)">Solde : @o.BalanceFcfa.ToString("N0") FCFA</MudText>
+                            </div>
+                            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary" Href="@($"/orders/{o.Id}")">Détails</MudButton>
+                        </div>
+                    </MudPaper>
+                }
+            </MudStack>
+        </div>
+
+        <div class="d-flex justify-center mt-4">
+            <MudPagination Count="@Math.Max(1, _result.TotalPages)" Selected="_page" SelectedChanged="OnPageChanged" Color="Color.Primary" />
+        </div>
+    }
+}
+
+@code {
+    private PagedResult<OrderSummaryDto>? _result;
+    private string? _search;
+    private OrderStatus? _statusFilter;
+    private bool _expressOnly;
+    private int _page = 1;
+    private bool _loading;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (Session.IsAuthenticated) await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        var res = await Api.GetOrdersAsync(new OrderQueryParams(_search, _statusFilter, _expressOnly ? true : null, null, _page, 15));
+        _loading = false;
+        if (res.IsSuccess) _result = res.Data;
+        else Snackbar.Add(res.Error?.Message ?? "Erreur", Severity.Error);
+    }
+
+    private async Task OnSearchChanged(string v) { _search = v; _page = 1; await LoadAsync(); }
+    private async Task OnStatusChanged(OrderStatus? s) { _statusFilter = s; _page = 1; await LoadAsync(); }
+    private async Task OnExpressChanged(bool v) { _expressOnly = v; _page = 1; await LoadAsync(); }
+    private async Task OnPageChanged(int p) { _page = p; await LoadAsync(); }
+}
