@@ -1,0 +1,23 @@
+@page "/tarifs"
+@layout PublicLayout
+@using NyangoPress.Web.Components.Layout
+
+<PageTitle>Nos tarifs</PageTitle>
+
+<section class="np-section">
+    <MudText Typo="Typo.h3" GutterBottom="true">Nos tarifs</MudText>
+    @* TODO : afficher les prix de la grille tarifaire via l'API du catalogue (Dev 3). Aucun prix en dur dans l'interface. *@
+    <MudPaper Elevation="0" Class="np-stitch pa-4 mt-4">
+        <MudSimpleTable Dense="true" Hover="true" Elevation="0">
+            <thead>
+                <tr><th>Service</th><th>Prix</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var s in PublicContent.Services)
+                {
+                    <tr><td>@s.Title</td><td>À venir</td></tr>
+                }
+            </tbody>
+        </MudSimpleTable>
+    </MudPaper>
+</section>

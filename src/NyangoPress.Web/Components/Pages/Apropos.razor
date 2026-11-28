@@ -1,0 +1,36 @@
+@page "/apropos"
+@layout PublicLayout
+@using NyangoPress.Web.Components.Layout
+
+<PageTitle>À propos</PageTitle>
+
+<section class="np-section">
+    <MudText Typo="Typo.h3" GutterBottom="true">Comment ça marche ?</MudText>
+    <div class="np-rail mt-4">
+        <div class="np-rail-track" role="list">
+            @for (var i = 0; i < PublicContent.Steps.Length; i++)
+            {
+                var step = PublicContent.Steps[i];
+                <div class="np-tag np-tag-wide" role="listitem" style="--tag:@step.Color; --i:@i">
+                    <span class="np-tag-string"></span>
+                    <span class="np-tag-hole"></span>
+                    <span class="np-tag-label">@step.Label</span>
+                    <span class="np-tag-text">@step.Text</span>
+                </div>
+            }
+        </div>
+    </div>
+</section>
+
+<section class="np-section">
+    <MudText Typo="Typo.h4" GutterBottom="true">Avis de nos clients</MudText>
+    <div class="np-grid mt-4">
+        @foreach (var r in PublicContent.Reviews)
+        {
+            <MudPaper Elevation="0" Class="np-stitch pa-5">
+                <MudText Typo="Typo.body1">« @r.Text »</MudText>
+                <MudText Typo="Typo.subtitle2" Color="Color.Secondary" Class="mt-3">@r.Author</MudText>
+            </MudPaper>
+        }
+    </div>
+</section>
