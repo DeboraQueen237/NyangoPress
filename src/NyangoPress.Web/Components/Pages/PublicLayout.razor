@@ -1,0 +1,72 @@
+@inherits LayoutComponentBase
+@using NyangoPress.Web.Theme
+
+<MudThemeProvider Theme="_theme" @bind-IsDarkMode="_isDarkMode" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="1" Class="np-appbar">
+        <a href="/" class="np-brand">
+            <NpLogo />
+            <span class="np-brand-name">NyangoPress</span>
+        </a>
+        <MudSpacer />
+
+        @* Provisoire : textes à passer dans les ressources FR/EN *@
+        <div class="np-pub-links">
+            <MudButton Href="/" Color="Color.Inherit">Accueil</MudButton>
+            <MudButton Href="/services" Color="Color.Inherit">Nos services</MudButton>
+            <MudButton Href="/tarifs" Color="Color.Inherit">Tarifs</MudButton>
+            <MudButton Href="/apropos" Color="Color.Inherit">À propos</MudButton>
+            <MudButton Href="/contact" Color="Color.Inherit">Contact</MudButton>
+        </div>
+
+        <div class="np-pub-menu">
+            <MudMenu Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight">
+                <MudMenuItem Href="/">Accueil</MudMenuItem>
+                <MudMenuItem Href="/services">Nos services</MudMenuItem>
+                <MudMenuItem Href="/tarifs">Tarifs</MudMenuItem>
+                <MudMenuItem Href="/apropos">À propos</MudMenuItem>
+                <MudMenuItem Href="/contact">Contact</MudMenuItem>
+            </MudMenu>
+        </div>
+
+        <MudButton Href="/contact" Variant="Variant.Filled" Color="Color.Tertiary" Class="np-order-btn ml-2">
+            Commander un lavage
+        </MudButton>
+        <MudIconButton Icon="@(_isDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
+                       Color="Color.Inherit"
+                       OnClick="ToggleDarkMode" />
+    </MudAppBar>
+
+    <MudMainContent Class="pt-16">
+        <MudContainer MaxWidth="MaxWidth.Large">
+            @Body
+        </MudContainer>
+
+        <footer class="np-footer">
+            <MudContainer MaxWidth="MaxWidth.Large" Class="np-footer-inner">
+                <a href="/" class="np-brand">
+                    <NpLogo Size="28" />
+                    <span class="np-brand-name">NyangoPress</span>
+                </a>
+                <MudText Typo="Typo.body2">© @DateTime.Now.Year NyangoPress. Le pressing connecté.</MudText>
+            </MudContainer>
+        </footer>
+    </MudMainContent>
+</MudLayout>
+
+<div id="blazor-error-ui">
+    @* TODO : texte via les ressources FR/EN *@
+    <a href="" class="reload">↻</a>
+    <span class="dismiss">✕</span>
+</div>
+
+@code {
+    private readonly MudTheme _theme = NyangoPressTheme.Create();
+    private bool _isDarkMode;
+
+    private void ToggleDarkMode() => _isDarkMode = !_isDarkMode;
+}

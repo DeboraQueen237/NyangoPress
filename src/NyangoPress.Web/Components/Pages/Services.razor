@@ -1,0 +1,19 @@
+@page "/services"
+@layout PublicLayout
+@using NyangoPress.Web.Components.Layout
+
+<PageTitle>Nos services</PageTitle>
+
+<section class="np-section">
+    <MudText Typo="Typo.h3" GutterBottom="true">Nos services</MudText>
+    <div class="np-grid mt-4">
+        @foreach (var s in PublicContent.Services)
+        {
+            <MudPaper Elevation="0" Class="np-stitch np-service pa-5">
+                <span class="np-service-icon"><MudIcon Icon="@s.Icon" /></span>
+                <MudText Typo="Typo.h6" Class="mt-3">@s.Title</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Secondary">@s.Text</MudText>
+            </MudPaper>
+        }
+    </div>
+</section>

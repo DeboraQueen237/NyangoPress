@@ -1,0 +1,27 @@
+@page "/contact"
+@layout PublicLayout
+@using NyangoPress.Web.Components.Layout
+
+<PageTitle>Contact</PageTitle>
+
+<section class="np-section">
+    <MudText Typo="Typo.h3" GutterBottom="true">Nous contacter</MudText>
+    @* TODO : lire adresse, téléphone et horaires dans les paramètres du pressing (SET-01). *@
+    <div class="np-grid mt-4">
+        <MudPaper Elevation="0" Class="np-stitch pa-5">
+            <MudIcon Icon="@Icons.Material.Filled.Place" />
+            <MudText Typo="Typo.h6" Class="mt-2">Adresse</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">À renseigner dans les paramètres</MudText>
+        </MudPaper>
+        <MudPaper Elevation="0" Class="np-stitch pa-5">
+            <MudIcon Icon="@Icons.Material.Filled.Phone" />
+            <MudText Typo="Typo.h6" Class="mt-2">Téléphone et WhatsApp</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">À renseigner dans les paramètres</MudText>
+        </MudPaper>
+        <MudPaper Elevation="0" Class="np-stitch pa-5">
+            <MudIcon Icon="@Icons.Material.Filled.Schedule" />
+            <MudText Typo="Typo.h6" Class="mt-2">Horaires</MudText>
+            <MudText Typo="Typo.body2" Color="Color.Secondary">À renseigner dans les paramètres</MudText>
+        </MudPaper>
+    </div>
+</section>
