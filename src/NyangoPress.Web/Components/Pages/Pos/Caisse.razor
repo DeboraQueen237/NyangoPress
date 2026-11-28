@@ -1,0 +1,159 @@
+@page "/caisse"
+@inject ISnackbar Snackbar
+
+<PageTitle>Caisse</PageTitle>
+
+@* Provisoire : textes à passer dans les ressources FR/EN. *@
+<MudText Typo="Typo.h4" GutterBottom="true">Nouveau dépôt</MudText>
+
+<div class="np-pos">
+    <div>
+        <MudTextField @bind-Value="_search"
+                      Immediate="true"
+                      Placeholder="Rechercher un habit"
+                      Variant="Variant.Outlined"
+                      Margin="Margin.Dense"
+                      Adornment="Adornment.Start"
+                      AdornmentIcon="@Icons.Material.Filled.Search"
+                      Class="mb-3" />
+
+        <div class="np-chips">
+            @foreach (var c in FakeGarments.Categories)
+            {
+                var category = c;
+                <MudButton Size="Size.Small"
+                           Variant="@(category == _category ? Variant.Filled : Variant.Outlined)"
+                           Color="Color.Primary"
+                           OnClick="() => _category = category">@category</MudButton>
+            }
+        </div>
+
+        <div class="np-garments">
+            @foreach (var g in Filtered())
+            {
+                var garment = g;
+                <MudPaper Elevation="0" Class="np-garment np-stitch pa-4">
+                    <div class="np-garment-head">
+                        <span class="np-service-icon"><MudIcon Icon="@garment.Icon" /></span>
+                        <MudText Typo="Typo.subtitle1">@garment.Name</MudText>
+                    </div>
+
+                    <div class="np-sizes">
+                        @foreach (var s in garment.Sizes)
+                        {
+                            var size = s;
+                            <button type="button"
+                                    class="np-size @(SizeOf(garment) == size ? "is-on" : "")"
+                                    @onclick="() => SetSize(garment, size)">@size</button>
+                        }
+                    </div>
+
+                    <div class="np-counter">
+                        <MudIconButton Icon="@Icons.Material.Filled.Remove" Size="Size.Small"
+                                       Disabled="@(QtyOf(garment) <= 1)"
+                                       OnClick="() => Change(garment, -1)" />
+                        <span class="np-qty">@QtyOf(garment)</span>
+                        <MudIconButton Icon="@Icons.Material.Filled.Add" Size="Size.Small"
+                                       OnClick="() => Change(garment, 1)" />
+                    </div>
+
+                    <MudButton FullWidth="true" Variant="Variant.Filled" Color="Color.Primary"
+                               OnClick="() => Add(garment)">Ajouter</MudButton>
+                </MudPaper>
+            }
+        </div>
+
+        @if (!Filtered().Any())
+        {
+            <MudText Color="Color.Secondary">Aucun habit ne correspond à la recherche.</MudText>
+        }
+    </div>
+
+    <MudPaper Elevation="1" Class="np-recap np-stitch pa-4">
+        <MudText Typo="Typo.h6" GutterBottom="true">Récapitulatif</MudText>
+
+        @if (_lines.Count == 0)
+        {
+            <MudText Typo="Typo.body2" Color="Color.Secondary">Aucun article pour l'instant.</MudText>
+        }
+        else
+        {
+            @foreach (var l in _lines)
+            {
+                var line = l;
+                <div class="np-line">
+                    <div>
+                        <strong>@line.Type.Name</strong>
+                        <span class="np-line-size">@line.Size</span>
+                    </div>
+                    <div class="np-line-qty">× @line.Qty</div>
+                    <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small"
+                                   OnClick="() => Remove(line)" />
+                </div>
+            }
+
+            <MudDivider Class="my-3" />
+            <div class="np-total"><span>Articles</span><strong>@TotalItems</strong></div>
+            @* TODO : afficher le total renvoyé par IPricingService (Dev 3). Aucun calcul de prix ici. *@
+            <div class="np-total"><span>Total</span><span>Calculé par le serveur</span></div>
+
+            <MudButton FullWidth="true" Variant="Variant.Filled" Color="Color.Tertiary" Class="mt-2"
+                       OnClick="Next">Continuer : photos et défauts</MudButton>
+        }
+    </MudPaper>
+</div>
+
+@code {
+    private class Line
+    {
+        public required GarmentType Type { get; init; }
+        public required string Size { get; init; }
+        public int Qty { get; set; }
+    }
+
+    private readonly List<Line> _lines = new();
+    private readonly Dictionary<string, string> _sizes = new();
+    private readonly Dictionary<string, int> _qty = new();
+
+    private string _search = "";
+    private string _category = FakeGarments.AllCategories;
+
+    private int TotalItems => _lines.Sum(l => l.Qty);
+
+    private IEnumerable<GarmentType> Filtered() =>
+        FakeGarments.All.Where(g =>
+            (_category == FakeGarments.AllCategories || g.Category == _category) &&
+            (string.IsNullOrWhiteSpace(_search) ||
+             g.Name.Contains(_search.Trim(), StringComparison.OrdinalIgnoreCase)));
+
+    // Taille par défaut : la plus courante (M) si elle existe, sinon la première.
+    private string SizeOf(GarmentType g) =>
+        _sizes.TryGetValue(g.Id, out var s) ? s : (g.Sizes.Contains("M") ? "M" : g.Sizes[0]);
+
+    private int QtyOf(GarmentType g) => _qty.TryGetValue(g.Id, out var q) ? q : 1;
+
+    private void SetSize(GarmentType g, string size) => _sizes[g.Id] = size;
+
+    private void Change(GarmentType g, int delta) =>
+        _qty[g.Id] = Math.Max(1, QtyOf(g) + delta);
+
+    private void Add(GarmentType g)
+    {
+        var size = SizeOf(g);
+        var existing = _lines.FirstOrDefault(l => l.Type.Id == g.Id && l.Size == size);
+        if (existing is null)
+        {
+            _lines.Add(new Line { Type = g, Size = size, Qty = QtyOf(g) });
+        }
+        else
+        {
+            existing.Qty += QtyOf(g);
+        }
+        _qty[g.Id] = 1;
+    }
+
+    private void Remove(Line line) => _lines.Remove(line);
+
+    private void Next() =>
+        Snackbar.Add("Étape suivante : photos et défauts de chaque article (à venir).", Severity.Info);
+}
